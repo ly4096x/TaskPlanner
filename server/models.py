@@ -1,0 +1,164 @@
+"""Pydantic v2 models shared by API and CLI."""
+
+from pydantic import BaseModel, Field
+
+# --- User models ---
+
+
+class UserCreate(BaseModel):
+    external_id: str = Field(min_length=1)
+    username: str = Field(min_length=3, pattern=r"^[a-z][a-z0-9_]*[a-z0-9]$")
+    display_name: str = Field(min_length=1)
+    report_to: str | None = None  # username
+
+
+class UserUpdate(BaseModel):
+    external_id: str | None = None
+    username: str | None = Field(default=None, min_length=3, pattern=r"^[a-z][a-z0-9_]*[a-z0-9]$")
+    display_name: str | None = None
+    report_to: str | None = None  # username
+
+
+class UserResponse(BaseModel):
+    id: int
+    external_id: str
+    username: str
+    display_name: str
+    report_to: int | None
+
+
+# --- Board models ---
+
+
+class BoardCreate(BaseModel):
+    name: str
+    description: str = ""
+
+
+class BoardUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
+class BoardResponse(BaseModel):
+    id: int
+    name: str
+    description: str
+    created_time: float
+
+
+# --- Tag models ---
+
+
+class TagResponse(BaseModel):
+    id: int
+    name: str
+
+
+# --- Task models ---
+
+
+class TaskCreate(BaseModel):
+    title: str = Field(min_length=1)
+    description: str = ""
+    assignee_id: int | None = None
+    assignee: str | None = None  # username
+    importance: int = Field(default=0, ge=0, le=100)
+    estimated_effort: int = Field(default=0, ge=0)
+    tags: list[str] = []
+    blockers: list[int] = []
+    status: str = "NEW"
+    parent_task_id: int | None = None
+
+
+class TaskUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    importance: int | None = Field(default=None, ge=0, le=100)
+    estimated_effort: int | None = Field(default=None, ge=0)
+
+
+class TaskResponse(BaseModel):
+    id: int
+    title: str
+    assignee_id: int | None
+    assignee_name: str | None
+    assignee_username: str | None
+    description: str
+    importance: int
+    estimated_effort: int
+    created_time: float
+    status: str
+    tags: list[str]
+    blockers: list[int]
+    parent_task_id: int | None
+
+
+class TaskEdit(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    importance: int | None = Field(default=None, ge=0, le=100)
+    estimated_effort: int | None = Field(default=None, ge=0)
+    status: str | None = None
+    status_reason: str | None = None  # required for NOT_REPRODUCIBLE
+    assignee_id: int | None = None
+    assignee: str | None = None  # username
+    tags: list[str] | None = None
+    blockers: list[int] | None = None
+    parent_task_id: int | None = None
+
+
+# --- Comment models ---
+
+
+class CommentCreate(BaseModel):
+    content: str
+    commenter_id: int | None = None
+    commenter: str | None = None  # username
+    comment_type: str = "TEXT"
+
+
+class CommentResponse(BaseModel):
+    id: int
+    task_id: int
+    commenter_id: int | None
+    commenter_name: str | None
+    commenter_username: str | None
+    content: str
+    comment_type: str
+    created_time: float
+
+
+# --- Partial update models ---
+
+
+class StatusUpdate(BaseModel):
+    status: str
+
+
+class AssigneeUpdate(BaseModel):
+    user_id: int | None = None
+
+
+class TagsUpdate(BaseModel):
+    tags: list[str]
+
+
+class BlockersUpdate(BaseModel):
+    task_ids: list[int]
+
+
+# --- Attachment models ---
+
+
+class AttachmentResponse(BaseModel):
+    id: int
+    task_id: int
+    board_id: int
+    filename: str
+    original_name: str
+    content_type: str
+    size: int
+    uploader_id: int | None
+    created_time: float
+    comment_id: int | None

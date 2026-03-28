@@ -1,0 +1,13 @@
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+**/dist/
+**/.vite/
+runtime_data/
+runtime_data.old/
+CLAUDE.md
