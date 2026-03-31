@@ -30,13 +30,23 @@ TaskPlanner watch --stop                      # stop running watcher
 ```
 
 ### add-task options
-`--title`, `--description`, `--assignee <username>`, `--importance <0-100>`, `--effort <int>`, `--tags <comma-sep>`, `--blockers <comma-sep task IDs>`, `--start-now`, `--parent <task_id>`
+```
+TaskPlanner add-task --title TEXT [--description TEXT] [--assignee USERNAME]
+    [--importance 0-100] [--effort INT] [--tags TAG1,TAG2,...]
+    [--blockers ID1,ID2,...] [--parent TASK_ID] [--start-now]
+```
 
 ### edit options
-`--status`, `--assignee`, `--title`, `--description`, `--importance`, `--effort`, `--parent <task_id>` (0 to clear)
+```
+TaskPlanner edit TASK_ID [--status STATUS] [--assignee USERNAME]
+    [--title TEXT] [--description TEXT] [--importance 0-100]
+    [--effort INT] [--parent TASK_ID]  # use --parent 0 to clear
+```
 
 ### add-comment options
-`-m/--message` (required), `-f/--file` (repeatable, attach files), `-t/--type [TEXT|EXECUTION_LOG]`
+```
+TaskPlanner add-comment TASK_ID -m TEXT [-f FILE]... [-t TEXT|EXECUTION_LOG]
+```
 
 ### list options
 `-f/--filter`, `-L/--limit`, `-T/--template`, `--format [table|json]`
