@@ -320,10 +320,6 @@ def handle_stop_watch(data):
         return
 
     session_id = get_session_id(data)
-    agent_id = get_agent_id(data)
-
-    # Kill any existing watch before starting a new one
-    kill_session_watch(session_id, agent_id)
 
     watch_cmd = [CLI, "watch"]
     if session_id:
@@ -337,14 +333,6 @@ def handle_stop_watch(data):
             sys.exit(2)
     except Exception:
         pass
-
-
-def kill_session_watch(session_id, agent_id):  # noqa: ARG001
-    """Stop any running watcher via the server's watch_stop event."""
-    args = ["watch", "--stop"]
-    if session_id:
-        args += ["--session-id", session_id]
-    run_cli(*args, timeout=10)
 
 
 def export_env(data, username=None):
@@ -394,9 +382,6 @@ def export_env(data, username=None):
 def handle_session_start(data):
     session_id = data.get("session_id", "")
     agent_id = get_agent_id(data)
-
-    if session_id:
-        kill_session_watch(session_id, agent_id)
 
     # Create agent user (the only place this happens)
     username = get_or_create_agent_user(session_id, agent_id)
