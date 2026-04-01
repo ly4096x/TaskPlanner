@@ -32,8 +32,8 @@
   --importance-medium: #eab308;
   --importance-low: #6b7280;
 
-  --tooltip-bg: #374151;
-  --tooltip-text: #f9fafb;
+  --tooltip-bg: #d1d5db;
+  --tooltip-text: #111827;
 }
 
 [data-theme="dark"] {
@@ -59,8 +59,8 @@
   --importance-medium: #fbbf24;
   --importance-low: #9ca3af;
 
-  --tooltip-bg: #d1d5db;
-  --tooltip-text: #111827;
+  --tooltip-bg: #374151;
+  --tooltip-text: #f9fafb;
 }
 
 /* Base styles */
@@ -109,6 +109,7 @@
     line-height: 1.4;
     white-space: nowrap;
     border-radius: 4px;
+    border: 1px solid var(--color-border);
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     z-index: 9999;
     pointer-events: none;
