@@ -264,11 +264,19 @@
       <!-- svelte-ignore a11y_label_has_associated_control -->
       <label>Description</label>
       {#if editingField === 'description'}
-        <textarea
-          bind:value={editDescription}
-          onblur={() => { editingField = null; markDirty(); }}
-          rows="4"
-        ></textarea>
+        <div class="desc-box">
+          <textarea
+            bind:value={editDescription}
+            onblur={() => { editingField = null; markDirty(); }}
+            rows="4"
+          ></textarea>
+          <div class="desc-box-toolbar">
+            <label class="attach-btn-inline">
+              <input type="file" multiple onchange={handleFileInput} style="display:none" />
+              Attach files
+            </label>
+          </div>
+        </div>
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div class="editable desc" onclick={() => editingField = 'description'}>
@@ -372,38 +380,32 @@
       </div>
     {/if}
 
-    <div class="field">
-      <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Attachments</label>
-      <div class="attachments">
-        {#each attachments as att (att.id)}
-          <div class="attachment-item">
-            {#if att.content_type.startsWith('image/')}
-              <a href={getFileUrl(att.id)} target="_blank" rel="noopener">
-                <img src={getFileUrl(att.id)} alt={att.original_name} class="attachment-thumb" />
-              </a>
-            {:else}
-              <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="attachment-file">
-                {att.original_name}
-              </a>
-            {/if}
-            <div class="attachment-info">
-              <span class="attachment-name">{att.original_name}</span>
-              <span class="attachment-size">{formatSize(att.size)}</span>
-              <button type="button" class="attachment-delete" onclick={() => handleDeleteAttachment(att.id)}>x</button>
+    {#if attachments.length > 0}
+      <div class="field">
+        <!-- svelte-ignore a11y_label_has_associated_control -->
+        <label>Attachments</label>
+        <div class="attachments">
+          {#each attachments as att (att.id)}
+            <div class="attachment-item">
+              {#if att.content_type.startsWith('image/')}
+                <a href={getFileUrl(att.id)} target="_blank" rel="noopener">
+                  <img src={getFileUrl(att.id)} alt={att.original_name} class="attachment-thumb" />
+                </a>
+              {:else}
+                <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="attachment-file">
+                  {att.original_name}
+                </a>
+              {/if}
+              <div class="attachment-info">
+                <span class="attachment-name">{att.original_name}</span>
+                <span class="attachment-size">{formatSize(att.size)}</span>
+                <button type="button" class="attachment-delete" onclick={() => handleDeleteAttachment(att.id)}>x</button>
+              </div>
             </div>
-          </div>
-        {/each}
-        <label class="upload-area">
-          <input type="file" multiple onchange={handleFileInput} style="display:none" />
-          {#if uploading}
-            Uploading...
-          {:else}
-            Drop files here, paste an image, or click to upload
-          {/if}
-        </label>
+          {/each}
+        </div>
       </div>
-    </div>
+    {/if}
 
     {#if saveError}
       <div class="save-error">{saveError}</div>
@@ -495,6 +497,42 @@
   .field textarea {
     width: 100%;
     box-sizing: border-box;
+  }
+  .desc-box {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .desc-box:focus-within {
+    border-color: var(--color-primary);
+  }
+  .desc-box textarea {
+    border: none;
+    border-radius: 0;
+    width: 100%;
+  }
+  .desc-box textarea:focus {
+    outline: none;
+    box-shadow: none;
+  }
+  .desc-box-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg);
+  }
+  .attach-btn-inline {
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius);
+  }
+  .attach-btn-inline:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
   }
   .desc {
     min-height: 40px;

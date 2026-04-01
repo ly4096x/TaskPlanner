@@ -233,12 +233,17 @@
   .board-row {
     display: flex;
     align-items: center;
+    transition: background 0.1s;
+  }
+  .board-row:hover {
+    background: var(--color-bg);
   }
   .board-row:hover .archive-btn {
     opacity: 1;
   }
   .board-row.active {
     border-left: 3px solid var(--color-primary);
+    background: var(--color-bg);
   }
   .board-row.archived {
     opacity: 0.6;
@@ -257,11 +262,6 @@
     color: var(--color-text);
     cursor: pointer;
     font-size: 14px;
-    transition: background 0.1s;
-  }
-  .board-row:hover .board-item,
-  .board-row.active .board-item {
-    background: var(--color-bg);
   }
   .board-row.active .board-item {
     font-weight: 600;
