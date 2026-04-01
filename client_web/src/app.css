@@ -31,6 +31,9 @@
   --importance-high: #ef4444;
   --importance-medium: #eab308;
   --importance-low: #6b7280;
+
+  --tooltip-bg: #1a1a2e;
+  --tooltip-text: #f5f7fa;
 }
 
 [data-theme="dark"] {
@@ -55,6 +58,9 @@
   --importance-high: #f87171;
   --importance-medium: #fbbf24;
   --importance-low: #9ca3af;
+
+  --tooltip-bg: #e4e6eb;
+  --tooltip-text: #0f1117;
 }
 
 /* Base styles */
@@ -96,13 +102,14 @@
   #tooltip {
     position: fixed;
     padding: 4px 8px;
-    background: var(--color-text);
-    color: var(--color-bg);
+    background: var(--tooltip-bg);
+    color: var(--tooltip-text);
     font-size: 12px;
     font-weight: 400;
     line-height: 1.4;
     white-space: nowrap;
     border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     z-index: 9999;
     pointer-events: none;
     opacity: 0;
