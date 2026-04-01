@@ -107,67 +107,83 @@
     {/if}
   </div>
 
-  {#if loading}
-    <p class="loading">Loading comments...</p>
-  {:else if loadError}
-    <p class="error">{loadError}</p>
-    <button class="retry-btn" onclick={loadComments}>Retry</button>
-  {:else if comments.length === 0}
-    <p class="empty">No comments yet.</p>
-  {:else}
-    <div class="comment-list">
-      {#each sortedComments as comment (comment.id)}
-        <div class="comment" class:metadata-comment={comment.comment_type === 'METADATA_CHANGE'} class:log-comment={comment.comment_type === 'EXECUTION_LOG'}>
-          <div class="comment-meta">{#if comment.commenter_name}<span class="commenter">{comment.commenter_name}</span> · {/if}{formatTime(comment.created_time)}</div>
-          <div class="comment-content">
-            {@html marked.parse(comment.content)}
-          </div>
-          {#if commentAttachments[comment.id]?.length}
-            <div class="comment-attachments">
-              {#each commentAttachments[comment.id] as att (att.id)}
-                {#if att.content_type.startsWith('image/')}
-                  <a href={getFileUrl(att.id)} target="_blank" rel="noopener">
-                    <img src={getFileUrl(att.id)} alt={att.original_name} class="comment-thumb" />
-                  </a>
-                {:else}
-                  <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="comment-file">
-                    {att.original_name} <span class="file-size">({formatSize(att.size)})</span>
-                  </a>
-                {/if}
-              {/each}
+  {#snippet commentList()}
+    {#if loading}
+      <p class="loading">Loading comments...</p>
+    {:else if loadError}
+      <p class="error">{loadError}</p>
+      <button class="retry-btn" onclick={loadComments}>Retry</button>
+    {:else if comments.length === 0}
+      <p class="empty">No comments yet.</p>
+    {:else}
+      <div class="comment-list">
+        {#each sortedComments as comment (comment.id)}
+          <div class="comment" class:metadata-comment={comment.comment_type === 'METADATA_CHANGE'} class:log-comment={comment.comment_type === 'EXECUTION_LOG'}>
+            <div class="comment-meta">{#if comment.commenter_name}<span class="commenter">{comment.commenter_name}</span> · {/if}{formatTime(comment.created_time)}</div>
+            <div class="comment-content">
+              {@html marked.parse(comment.content)}
             </div>
-          {/if}
-        </div>
-      {/each}
-    </div>
-  {/if}
-
-  <form class="comment-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-    <textarea
-      bind:value={newComment}
-      placeholder="Add a comment..."
-      rows="2"
-    ></textarea>
-    {#if pendingFiles.length > 0}
-      <div class="pending-files">
-        {#each pendingFiles as file, i}
-          <span class="pending-file">
-            {file.name}
-            <button type="button" class="pending-remove" onclick={() => removePendingFile(i)}>x</button>
-          </span>
+            {#if commentAttachments[comment.id]?.length}
+              <div class="comment-attachments">
+                {#each commentAttachments[comment.id] as att (att.id)}
+                  {#if att.content_type.startsWith('image/')}
+                    <a href={getFileUrl(att.id)} target="_blank" rel="noopener">
+                      <img src={getFileUrl(att.id)} alt={att.original_name} class="comment-thumb" />
+                    </a>
+                  {:else}
+                    <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="comment-file">
+                      {att.original_name} <span class="file-size">({formatSize(att.size)})</span>
+                    </a>
+                  {/if}
+                {/each}
+              </div>
+            {/if}
+          </div>
         {/each}
       </div>
     {/if}
-    <div class="comment-actions">
-      <label class="attach-btn">
-        <input type="file" multiple onchange={handleFileSelect} style="display:none" />
-        Attach files
-      </label>
-      <button type="submit" disabled={submitting || (!newComment.trim() && pendingFiles.length === 0)}>
-        {submitting ? 'Adding...' : 'Add Comment'}
-      </button>
-    </div>
-  </form>
+  {/snippet}
+
+  {#if commentSort === 'newest'}
+    {@render commentForm()}
+    {@render commentList()}
+  {:else}
+    {@render commentList()}
+    {@render commentForm()}
+  {/if}
+
+  {#snippet commentForm()}
+    <form class="comment-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+      <div class="comment-box">
+        <textarea
+          bind:value={newComment}
+          placeholder="Add a comment..."
+          rows="2"
+        ></textarea>
+        <div class="comment-box-toolbar">
+          <label class="attach-btn">
+            <input type="file" multiple onchange={handleFileSelect} style="display:none" />
+            Attach files
+          </label>
+        </div>
+      </div>
+      {#if pendingFiles.length > 0}
+        <div class="pending-files">
+          {#each pendingFiles as file, i}
+            <span class="pending-file">
+              {file.name}
+              <button type="button" class="pending-remove" onclick={() => removePendingFile(i)}>x</button>
+            </span>
+          {/each}
+        </div>
+      {/if}
+      <div class="comment-actions">
+        <button type="submit" disabled={submitting || (!newComment.trim() && pendingFiles.length === 0)}>
+          {submitting ? 'Adding...' : 'Add Comment'}
+        </button>
+      </div>
+    </form>
+  {/snippet}
 </div>
 
 <style>
@@ -316,12 +332,37 @@
     flex-direction: column;
     gap: 8px;
   }
+  .comment-box {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .comment-box:focus-within {
+    border-color: var(--color-primary);
+  }
+  .comment-box textarea {
+    border: none;
+    border-radius: 0;
+    resize: vertical;
+    width: 100%;
+  }
+  .comment-box textarea:focus {
+    outline: none;
+    box-shadow: none;
+  }
+  .comment-box-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg);
+  }
   .comment-form textarea {
     resize: vertical;
   }
   .comment-actions {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
   }
   .comment-actions button {

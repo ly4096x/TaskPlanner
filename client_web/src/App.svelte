@@ -62,6 +62,8 @@
   let sidebarCollapsed = $state(window.innerWidth <= 768);
   let showUsers = $state(false);
   let showArchivedBoards = $state(false);
+  let editingBoardName = $state(false);
+  let editBoardNameValue = $state('');
   let currentUser: User | null = $state(null);
 
   // Restore current user from localStorage
@@ -211,6 +213,27 @@
       selectedBoard = boards.find(b => !b.archived) ?? null;
       loadTasks();
     }
+  }
+
+  function startEditBoardName() {
+    if (!selectedBoard) return;
+    editBoardNameValue = selectedBoard.name;
+    editingBoardName = true;
+  }
+
+  async function saveBoardName() {
+    if (!selectedBoard) return;
+    const name = editBoardNameValue.trim();
+    if (name && name !== selectedBoard.name) {
+      const updated = await editBoard(selectedBoard.id, { name });
+      boards = boards.map(b => b.id === updated.id ? updated : b);
+      selectedBoard = updated;
+    }
+    editingBoardName = false;
+  }
+
+  function cancelEditBoardName() {
+    editingBoardName = false;
   }
 
   function toggleArchivedBoards() {
@@ -385,8 +408,17 @@
     <header>
       <div class="header-left">
         <h1>
-          {#if selectedBoard}
-            {selectedBoard.name}
+          {#if selectedBoard && editingBoardName}
+            <input
+              class="board-name-input"
+              type="text"
+              bind:value={editBoardNameValue}
+              onkeydown={(e) => { if (e.key === 'Enter') saveBoardName(); if (e.key === 'Escape') cancelEditBoardName(); }}
+              onblur={saveBoardName}
+              autofocus
+            />
+          {:else if selectedBoard}
+            <span class="board-name-text" ondblclick={startEditBoardName}>{selectedBoard.name}</span>
           {:else}
             TaskPlanner
           {/if}
@@ -507,6 +539,20 @@
     font-size: 16px;
     font-weight: 600;
     margin-left: 40px;
+  }
+  .board-name-text {
+    cursor: default;
+    user-select: none;
+  }
+  .board-name-input {
+    font-size: 16px;
+    font-weight: 600;
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-primary);
+    border-radius: 4px;
+    padding: 2px 6px;
+    width: 200px;
   }
   .header-toolbar {
     flex: 1;
