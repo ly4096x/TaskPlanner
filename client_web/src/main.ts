@@ -15,10 +15,21 @@ document.addEventListener('mouseenter', (e) => {
   }
   if (el.dataset.tooltip) {
     tip.textContent = el.dataset.tooltip;
-    const rect = el.getBoundingClientRect();
-    tip.style.left = `${rect.left + rect.width / 2 - tip.offsetWidth / 2}px`;
-    tip.style.top = `${rect.top - tip.offsetHeight - 4}px`;
+    // Make visible off-screen to measure
+    tip.style.left = '-9999px';
+    tip.style.top = '-9999px';
     tip.classList.add('visible');
+    const rect = el.getBoundingClientRect();
+    const tipW = tip.offsetWidth;
+    const tipH = tip.offsetHeight;
+    // Center horizontally, clamp to viewport
+    let left = rect.left + rect.width / 2 - tipW / 2;
+    left = Math.max(4, Math.min(left, window.innerWidth - tipW - 4));
+    // Prefer above, fall back to below if clipped
+    let top = rect.top - tipH - 4;
+    if (top < 4) top = rect.bottom + 4;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
   }
 }, true);
 document.addEventListener('mouseleave', (e) => {
