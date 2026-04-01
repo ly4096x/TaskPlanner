@@ -214,10 +214,12 @@
       <td class="py-2 px-3.5 border-b border-border text-[13px] align-middle last:border-b-0">
         <div class="flex items-center gap-1" style="padding-left: {depth * 20}px">
           {#if hasChildren(user.id)}
-            <button class="bg-none border-none p-0 cursor-pointer text-text-secondary text-sm w-[18px] h-[18px] inline-flex items-center justify-center shrink-0 hover:text-text" onclick={() => toggleCollapse(user.id)}>
-              <span class="inline-block transition-transform duration-150 {collapsed.has(user.id) ? '-rotate-90' : ''}">&#9662;</span>
+            <button class="bg-none border-none p-0 cursor-pointer text-text-secondary w-[18px] h-[18px] inline-flex items-center justify-center shrink-0 hover:text-text" onclick={() => toggleCollapse(user.id)}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-150 {collapsed.has(user.id) ? '-rotate-90' : ''}">
+                <path d="M3 4.5L6 7.5L9 4.5"/>
+              </svg>
             </button>
-          {:else if depth > 0}
+          {:else}
             <span class="w-[18px] inline-block shrink-0"></span>
           {/if}
           <span class="font-medium">{user.display_name}</span>
@@ -227,7 +229,7 @@
       <td class="py-2 px-3.5 border-b border-border text-[13px] align-middle text-text-secondary font-mono text-xs overflow-hidden text-ellipsis whitespace-nowrap max-w-[300px] hidden md:table-cell">{user.external_id}</td>
       <td class="py-2 px-3.5 border-b border-border text-[13px] align-middle text-right whitespace-nowrap">
         <button class="bg-bg text-text py-[3px] px-2 text-xs rounded" onclick={() => startEdit(user)}>Edit</button>
-        <button class="bg-none text-[color:var(--status-cancelled)] border border-[color:var(--status-cancelled)] py-[3px] px-2 text-xs rounded hover:bg-[color:var(--status-cancelled)] hover:text-white" onclick={() => handleDelete(user)}>Delete</button>
+        <button class="bg-none text-text-secondary border border-border py-[3px] px-2 text-xs rounded hover:!bg-[var(--importance-high)] hover:!text-white hover:!border-[var(--importance-high)]" onclick={() => handleDelete(user)}>Delete</button>
       </td>
     </tr>
   {/if}
