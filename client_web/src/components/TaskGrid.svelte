@@ -100,9 +100,7 @@
         </h3>
         <div class="flex flex-col gap-2 min-h-5">
           {#each group.tasks as task (task.id)}
-            <div draggable="true" ondragstart={(e) => handleDragStart(e, task)}>
-              <TaskCard {task} onclick={onselect} minimal />
-            </div>
+            <TaskCard {task} onclick={onselect} minimal draggable={!!onstatuschange} ondragstart={(e) => handleDragStart(e, task)} />
           {/each}
         </div>
       </div>
