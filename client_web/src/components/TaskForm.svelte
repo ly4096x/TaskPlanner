@@ -160,7 +160,15 @@
 
       <label>
         Description
-        <textarea bind:value={description} placeholder="Describe the task..." rows="3"></textarea>
+        <div class="desc-box">
+          <textarea bind:value={description} placeholder="Describe the task..." rows="3"></textarea>
+          <div class="desc-box-toolbar">
+            <label class="attach-btn-inline">
+              <input type="file" multiple onchange={handleFileInput} style="display:none" />
+              Attach files
+            </label>
+          </div>
+        </div>
       </label>
 
       <div class="row">
@@ -218,8 +226,7 @@
         </div>
       </label>
 
-      <label>
-        Attachments
+      {#if pendingFiles.length > 0}
         <div class="file-upload">
           {#each pendingFiles as file, i}
             <div class="pending-file">
@@ -227,12 +234,8 @@
               <button type="button" class="remove-file" onclick={() => removePendingFile(i)}>x</button>
             </div>
           {/each}
-          <label class="upload-area">
-            <input type="file" multiple onchange={handleFileInput} style="display:none" />
-            Drop files, paste image, or click to add
-          </label>
         </div>
-      </label>
+      {/if}
 
       {#if error}
         <p class="error">{error}</p>
@@ -302,6 +305,43 @@
   input[type="range"] {
     border: none;
     padding: 0;
+  }
+  .desc-box {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .desc-box:focus-within {
+    border-color: var(--color-primary);
+  }
+  .desc-box textarea {
+    border: none;
+    border-radius: 0;
+    width: 100%;
+  }
+  .desc-box textarea:focus {
+    outline: none;
+    box-shadow: none;
+  }
+  .desc-box-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg);
+  }
+  .attach-btn-inline {
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    font-size: 13px;
+    padding: 4px 8px;
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius);
+    font-weight: 400;
+  }
+  .attach-btn-inline:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
   }
   .tag-input {
     display: flex;
