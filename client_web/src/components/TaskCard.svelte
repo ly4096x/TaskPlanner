@@ -44,114 +44,41 @@
   }
 </script>
 
-<button class="card" onclick={() => onclick(task)}
+<button class="bg-bg border-none rounded-lg px-2.5 py-2 text-left w-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[background] duration-150 hover:shadow-[0_2px_6px_rgba(0,0,0,0.15)] hover:brightness-[0.97]"
+  onclick={() => onclick(task)}
   style={minimal ? `background: color-mix(in srgb, var(--status-${statusCssVar(task.status)}) 8%, var(--color-surface))` : ''}>
   {#if minimal}
-    <h3 class="title">{task.title}</h3>
+    <h3 class="text-sm font-normal mb-1 text-text leading-tight">{task.title}</h3>
     {#if task.assignee_name}
-      <div class="assignee">{task.assignee_name}</div>
+      <div class="text-[11px] text-text-secondary opacity-50">{task.assignee_name}</div>
     {/if}
   {:else}
-    <div class="card-header">
-      <span class="badge badge-{task.status.toLowerCase()}">{statusLabel(task.status)}</span>
-      <span class="importance" style="color: {importanceColor(task.importance)}">{task.importance}</span>
+    <div class="flex justify-between items-center mb-1">
+      <span class="badge text-[10px] font-semibold px-1.5 py-px rounded-[10px] uppercase leading-[14px] h-4 inline-flex items-center whitespace-nowrap" style="--badge-color: var(--status-{statusCssVar(task.status)})">{statusLabel(task.status)}</span>
+      <span class="font-semibold text-xs" style="color: {importanceColor(task.importance)}">{task.importance}</span>
     </div>
-    <h3 class="title">{task.title}</h3>
+    <h3 class="text-sm font-normal mb-1 text-text leading-tight">{task.title}</h3>
     {#if task.tags.length > 0}
-      <div class="tags">
+      <div class="flex flex-wrap gap-1 mb-1">
         {#each task.tags as tag}
-          <span class="tag">{tag}</span>
+          <span class="bg-bg text-text-secondary text-[11px] px-1.5 py-px rounded-xl">{tag}</span>
         {/each}
       </div>
     {/if}
     {#if task.assignee_name}
-      <div class="assignee">{task.assignee_name}</div>
+      <div class="text-[11px] text-text-secondary opacity-50">{task.assignee_name}</div>
     {/if}
   {/if}
 </button>
 
 <style>
-  .card {
-    background: var(--color-bg);
-    border: none;
-    border-radius: 8px;
-    padding: 8px 10px;
-    text-align: left;
-    width: 100%;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    transition: background 0.15s;
-  }
-  .card:hover {
-    background: color-mix(in srgb, var(--color-bg) 92%, var(--color-text));
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  }
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-  }
   .badge {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 10px;
-    text-transform: uppercase;
-    line-height: 14px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    white-space: nowrap;
     color: white;
+    background: var(--badge-color);
   }
-  .badge-new { background: var(--status-new); }
-  .badge-started { background: var(--status-started); }
-  .badge-waiting_for_more_info,
-  .badge-waiting_for_command_execution { background: var(--status-waiting); }
-  .badge-blocked { background: var(--status-blocked); }
-  .badge-done { background: var(--status-done); }
-  .badge-not_reproducible { background: var(--status-not-reproducible); }
-  .badge-cancelled { background: var(--status-cancelled); }
   :global([data-theme="dark"]) .badge {
-    color: inherit;
+    color: var(--badge-color);
     background: none;
-    border: 1.5px solid;
-  }
-  :global([data-theme="dark"]) .badge-new { color: var(--status-new); border-color: var(--status-new); }
-  :global([data-theme="dark"]) .badge-started { color: var(--status-started); border-color: var(--status-started); }
-  :global([data-theme="dark"]) .badge-waiting_for_more_info,
-  :global([data-theme="dark"]) .badge-waiting_for_command_execution { color: var(--status-waiting); border-color: var(--status-waiting); }
-  :global([data-theme="dark"]) .badge-blocked { color: var(--status-blocked); border-color: var(--status-blocked); }
-  :global([data-theme="dark"]) .badge-done { color: var(--status-done); border-color: var(--status-done); }
-  :global([data-theme="dark"]) .badge-not_reproducible { color: var(--status-not-reproducible); border-color: var(--status-not-reproducible); }
-  :global([data-theme="dark"]) .badge-cancelled { color: var(--status-cancelled); border-color: var(--status-cancelled); }
-  .importance {
-    font-weight: 600;
-    font-size: 12px;
-  }
-  .title {
-    font-size: 14px;
-    font-weight: 400;
-    margin-bottom: 4px;
-    color: var(--color-text);
-    line-height: 1.3;
-  }
-  .tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 4px;
-  }
-  .tag {
-    background: var(--color-bg);
-    color: var(--color-text-secondary);
-    font-size: 11px;
-    padding: 1px 6px;
-    border-radius: 12px;
-  }
-  .assignee {
-    font-size: 11px;
-    color: var(--color-text-secondary);
-    opacity: 0.5;
+    border: 1.5px solid var(--badge-color);
   }
 </style>

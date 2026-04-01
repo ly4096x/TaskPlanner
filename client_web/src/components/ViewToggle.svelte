@@ -7,9 +7,9 @@
   let { view, onchange }: Props = $props();
 </script>
 
-<div class="view-toggle">
+<div class="flex gap-1 bg-border rounded-[--radius] p-0.5">
   <button
-    class:active={view === 'list'}
+    class="bg-transparent text-text-secondary py-1.5 px-2.5 flex items-center {view === 'list' ? 'bg-surface text-primary shadow-[--shadow]' : ''}"
     onclick={() => onchange('list')}
     aria-label="List view"
   >
@@ -20,7 +20,7 @@
     </svg>
   </button>
   <button
-    class:active={view === 'card'}
+    class="bg-transparent text-text-secondary py-1.5 px-2.5 flex items-center {view === 'card' ? 'bg-surface text-primary shadow-[--shadow]' : ''}"
     onclick={() => onchange('card')}
     aria-label="Card view"
   >
@@ -32,25 +32,3 @@
     </svg>
   </button>
 </div>
-
-<style>
-  .view-toggle {
-    display: flex;
-    gap: 4px;
-    background: var(--color-border);
-    border-radius: var(--radius);
-    padding: 2px;
-  }
-  button {
-    background: transparent;
-    color: var(--color-text-secondary);
-    padding: 6px 10px;
-    display: flex;
-    align-items: center;
-  }
-  button.active {
-    background: var(--color-surface);
-    color: var(--color-primary);
-    box-shadow: var(--shadow);
-  }
-</style>

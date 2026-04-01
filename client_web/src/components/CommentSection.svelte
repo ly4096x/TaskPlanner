@@ -97,42 +97,42 @@
   });
 </script>
 
-<div class="comments">
-  <div class="comments-header">
-    <h4>Comments</h4>
+<div class="mt-6">
+  <div class="flex items-center justify-between mb-3">
+    <h4 class="text-base">Comments</h4>
     {#if comments.length > 1}
-      <button class="sort-toggle" onclick={() => { commentSort = commentSort === 'oldest' ? 'newest' : 'oldest'; localStorage.setItem('commentSort', commentSort); }}>
-        {commentSort === 'oldest' ? '↓ Oldest' : '↑ Newest'}
+      <button class="bg-bg text-text-secondary text-xs py-[3px] px-2.5 border border-border rounded-[--radius] hover:text-text" onclick={() => { commentSort = commentSort === 'oldest' ? 'newest' : 'oldest'; localStorage.setItem('commentSort', commentSort); }}>
+        {commentSort === 'oldest' ? '\u2193 Oldest' : '\u2191 Newest'}
       </button>
     {/if}
   </div>
 
   {#snippet commentList()}
     {#if loading}
-      <p class="loading">Loading comments...</p>
+      <p class="text-text-secondary text-sm py-2">Loading comments...</p>
     {:else if loadError}
-      <p class="error">{loadError}</p>
-      <button class="retry-btn" onclick={loadComments}>Retry</button>
+      <p class="text-[color:var(--importance-high)] text-sm py-2">{loadError}</p>
+      <button class="bg-bg text-text text-[13px] py-1 px-3 mb-3" onclick={loadComments}>Retry</button>
     {:else if comments.length === 0}
-      <p class="empty">No comments yet.</p>
+      <p class="text-text-secondary text-sm py-2">No comments yet.</p>
     {:else}
-      <div class="comment-list">
+      <div class="flex flex-col gap-2 mb-4">
         {#each sortedComments as comment (comment.id)}
-          <div class="comment" class:metadata-comment={comment.comment_type === 'METADATA_CHANGE'} class:log-comment={comment.comment_type === 'EXECUTION_LOG'}>
-            <div class="comment-meta">{#if comment.commenter_name}<span class="commenter">{comment.commenter_name}</span> · {/if}{formatTime(comment.created_time)}</div>
-            <div class="comment-content">
+          <div class="bg-bg rounded-[--radius] py-2.5 px-3.5 {comment.comment_type === 'METADATA_CHANGE' ? 'metadata-comment' : ''} {comment.comment_type === 'EXECUTION_LOG' ? 'log-comment' : ''}">
+            <div class="text-xs text-text-secondary mb-1 {comment.comment_type !== 'TEXT' ? 'text-[11px] mb-0.5' : ''}">{#if comment.commenter_name}<span class="font-semibold text-text">{comment.commenter_name}</span> &middot; {/if}{formatTime(comment.created_time)}</div>
+            <div class="prose prose-sm max-w-none {comment.comment_type === 'METADATA_CHANGE' ? 'text-xs text-text-secondary' : ''} {comment.comment_type === 'EXECUTION_LOG' ? 'text-[13px] text-text-secondary' : ''}">
               {@html marked.parse(comment.content)}
             </div>
             {#if commentAttachments[comment.id]?.length}
-              <div class="comment-attachments">
+              <div class="flex flex-wrap gap-2 mt-2">
                 {#each commentAttachments[comment.id] as att (att.id)}
                   {#if att.content_type.startsWith('image/')}
                     <a href={getFileUrl(att.id)} target="_blank" rel="noopener">
-                      <img src={getFileUrl(att.id)} alt={att.original_name} class="comment-thumb" />
+                      <img src={getFileUrl(att.id)} alt={att.original_name} class="max-w-[200px] max-h-[120px] rounded-[--radius] object-contain cursor-pointer" />
                     </a>
                   {:else}
-                    <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="comment-file">
-                      {att.original_name} <span class="file-size">({formatSize(att.size)})</span>
+                    <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="text-primary no-underline text-[13px] hover:underline">
+                      {att.original_name} <span class="text-text-secondary text-xs">({formatSize(att.size)})</span>
                     </a>
                   {/if}
                 {/each}
@@ -153,32 +153,33 @@
   {/if}
 
   {#snippet commentForm()}
-    <form class="comment-form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-      <div class="comment-box">
+    <form class="flex flex-col gap-2" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+      <div class="border border-border rounded-[--radius] overflow-hidden focus-within:border-primary">
         <textarea
           bind:value={newComment}
           placeholder="Add a comment..."
           rows="2"
+          class="border-none rounded-none resize-y w-full focus:outline-none focus:shadow-none"
         ></textarea>
-        <div class="comment-box-toolbar">
-          <label class="attach-btn">
+        <div class="flex items-center py-1 px-2 border-t border-border bg-bg">
+          <label class="cursor-pointer text-text-secondary text-[13px] py-1 px-2 border border-dashed border-border rounded-[--radius] hover:text-primary hover:border-primary">
             <input type="file" multiple onchange={handleFileSelect} style="display:none" />
             Attach files
           </label>
         </div>
       </div>
       {#if pendingFiles.length > 0}
-        <div class="pending-files">
+        <div class="flex flex-wrap gap-1.5">
           {#each pendingFiles as file, i}
-            <span class="pending-file">
+            <span class="bg-bg py-[3px] px-2 rounded-xl text-xs flex items-center gap-1">
               {file.name}
-              <button type="button" class="pending-remove" onclick={() => removePendingFile(i)}>x</button>
+              <button type="button" class="bg-none p-0 px-0.5 text-[11px] text-text-secondary cursor-pointer" onclick={() => removePendingFile(i)}>x</button>
             </span>
           {/each}
         </div>
       {/if}
-      <div class="comment-actions">
-        <button type="submit" disabled={submitting || (!newComment.trim() && pendingFiles.length === 0)}>
+      <div class="flex justify-end items-center">
+        <button type="submit" class="bg-primary text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-default" disabled={submitting || (!newComment.trim() && pendingFiles.length === 0)}>
           {submitting ? 'Adding...' : 'Add Comment'}
         </button>
       </div>
@@ -187,57 +188,7 @@
 </div>
 
 <style>
-  .comments {
-    margin-top: 24px;
-  }
-  .comments-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-  h4 {
-    font-size: 16px;
-  }
-  .sort-toggle {
-    background: var(--color-bg);
-    color: var(--color-text-secondary);
-    font-size: 12px;
-    padding: 3px 10px;
-    border: 1px solid var(--color-border);
-  }
-  .sort-toggle:hover {
-    color: var(--color-text);
-  }
-  .error {
-    color: var(--importance-high);
-    font-size: 14px;
-    padding: 8px 0;
-  }
-  .retry-btn {
-    background: var(--color-bg);
-    color: var(--color-text);
-    font-size: 13px;
-    padding: 4px 12px;
-    margin-bottom: 12px;
-  }
-  .loading, .empty {
-    color: var(--color-text-secondary);
-    font-size: 14px;
-    padding: 8px 0;
-  }
-  .comment-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-  .comment {
-    background: var(--color-bg);
-    border-radius: var(--radius);
-    padding: 10px 14px;
-  }
-  .comment.metadata-comment {
+  .metadata-comment {
     background: color-mix(in srgb, var(--status-waiting) 10%, var(--color-surface));
     border-left: 3px solid var(--status-waiting);
     font-family: monospace;
@@ -245,168 +196,10 @@
     color: var(--color-text-secondary);
     padding: 6px 14px;
   }
-  .comment.metadata-comment .comment-meta {
-    font-size: 11px;
-    margin-bottom: 2px;
-  }
-  .comment.metadata-comment .comment-content {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
-  .comment.log-comment {
+  .log-comment {
     background: color-mix(in srgb, var(--status-started) 8%, var(--color-surface));
     border-left: 3px solid var(--status-started);
     font-size: 13px;
     padding: 6px 14px;
-  }
-  .comment.log-comment .comment-meta {
-    font-size: 11px;
-    margin-bottom: 2px;
-  }
-  .comment.log-comment .comment-content {
-    font-size: 13px;
-    color: var(--color-text-secondary);
-  }
-  .comment-meta {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    margin-bottom: 4px;
-  }
-  .commenter {
-    font-weight: 600;
-    color: var(--color-text);
-  }
-  .comment-content {
-    font-size: 14px;
-  }
-  .comment-content :global(p) {
-    margin: 0 0 8px;
-  }
-  .comment-content :global(p:last-child) {
-    margin-bottom: 0;
-  }
-  .comment-content :global(code) {
-    background: var(--color-bg);
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 13px;
-  }
-  .comment-content :global(pre) {
-    background: var(--color-bg);
-    padding: 8px 12px;
-    border-radius: var(--radius);
-    overflow-x: auto;
-    font-size: 13px;
-  }
-  .comment-content :global(pre code) {
-    background: none;
-    padding: 0;
-  }
-  .comment-attachments {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 8px;
-  }
-  .comment-thumb {
-    max-width: 200px;
-    max-height: 120px;
-    border-radius: var(--radius);
-    object-fit: contain;
-    cursor: pointer;
-  }
-  .comment-file {
-    color: var(--color-primary);
-    text-decoration: none;
-    font-size: 13px;
-  }
-  .comment-file:hover {
-    text-decoration: underline;
-  }
-  .file-size {
-    color: var(--color-text-secondary);
-    font-size: 12px;
-  }
-  .comment-form {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .comment-box {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .comment-box:focus-within {
-    border-color: var(--color-primary);
-  }
-  .comment-box textarea {
-    border: none;
-    border-radius: 0;
-    resize: vertical;
-    width: 100%;
-  }
-  .comment-box textarea:focus {
-    outline: none;
-    box-shadow: none;
-  }
-  .comment-box-toolbar {
-    display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-bg);
-  }
-  .comment-form textarea {
-    resize: vertical;
-  }
-  .comment-actions {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-  }
-  .comment-actions button {
-    background: var(--color-primary);
-    color: white;
-  }
-  .comment-actions button:hover:not(:disabled) {
-    background: var(--color-primary-hover);
-  }
-  .comment-actions button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .attach-btn {
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    font-size: 13px;
-    padding: 4px 8px;
-    border: 1px dashed var(--color-border);
-    border-radius: var(--radius);
-  }
-  .attach-btn:hover {
-    color: var(--color-primary);
-    border-color: var(--color-primary);
-  }
-  .pending-files {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .pending-file {
-    background: var(--color-bg);
-    padding: 3px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .pending-remove {
-    background: none;
-    padding: 0 2px;
-    font-size: 11px;
-    color: var(--color-text-secondary);
-    cursor: pointer;
   }
 </style>

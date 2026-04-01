@@ -66,7 +66,6 @@
   let editBoardNameValue = $state('');
   let currentUser: User | null = $state(null);
 
-  // Restore current user from localStorage
   async function restoreCurrentUser() {
     const savedId = localStorage.getItem('currentUserId');
     if (savedId) {
@@ -99,7 +98,6 @@
     unsubscribeEvents = subscribeToBoardEvents(boardId, (event: BoardEvent) => {
       if (event.type === 'task_created') {
         const newTask = event.data as Task;
-        // Only add if not already in list (avoid duplicates from own actions)
         if (!tasks.find(t => t.id === newTask.id)) {
           tasks = [newTask, ...tasks];
         }
@@ -110,9 +108,7 @@
           selectedTask = updated;
         }
       } else if (event.type === 'comment_added') {
-        // Refresh task detail if open for this task
         if (selectedTask?.id === event.data.task_id) {
-          // CommentSection will handle its own refresh via the event
         }
       }
     }, (connected) => {
@@ -121,43 +117,35 @@
   }
 
   function handleSort(field: string) {
-    // Parse current sort criteria
     const criteria = sortStr ? parseSortCriteria(sortStr) : [];
     const existing = criteria.findIndex(c => c.field === field);
 
     if (existing === 0) {
-      // Already top priority — toggle direction
       criteria[0].dir = criteria[0].dir === 'asc' ? 'desc' : 'asc';
     } else if (existing > 0) {
-      // Already in list — move to top priority
       const [removed] = criteria.splice(existing, 1);
       criteria.unshift(removed);
     } else {
-      // New — add as top priority
       criteria.unshift({ field, dir: 'asc' });
     }
 
-    // Rebuild sort string with uppercase field names
     const reverseFieldMap: Record<string, string> = {
       id: 'ID', title: 'TITLE', status: 'STATUS', importance: 'IMPORTANCE',
       estimated_effort: 'EFFORT', created_time: 'CREATED',
       assignee_name: 'ASSIGNEE',
     };
     sortStr = criteria.map(c => `${reverseFieldMap[c.field] || c.field.toUpperCase()} ${c.dir}`).join(', ');
-    // Also update legacy sort fields for column header indicators
     sortField = criteria[0]?.field || 'id';
     sortDir = criteria[0]?.dir || 'asc';
     writeURL();
   }
 
-  // Parse sort string like "IMPORTANCE desc, CREATED_TIME asc"
   function parseSortCriteria(s: string): { field: string; dir: 'asc' | 'desc' }[] {
     if (!s.trim()) return [];
     return s.split(',').map(part => {
       const tokens = part.trim().split(/\s+/);
       const field = (tokens[0] || '').toLowerCase();
       const dir = (tokens[1] || 'asc').toLowerCase() === 'desc' ? 'desc' as const : 'asc' as const;
-      // Map uppercase field names to task keys
       const fieldMap: Record<string, string> = {
         id: 'id', title: 'title', status: 'status', importance: 'importance',
         estimated_effort: 'estimated_effort', effort: 'estimated_effort',
@@ -168,7 +156,6 @@
     }).filter(c => c.field);
   }
 
-  // Client-side sort (filtering is server-side)
   let sortedTasks = $derived.by(() => {
     const criteria = sortStr ? parseSortCriteria(sortStr) : [{ field: sortField, dir: sortDir }];
     const sorted = [...tasks].sort((a, b) => {
@@ -299,7 +286,6 @@
 
   function handleSortStr(s: string) {
     sortStr = s;
-    // Sync column header indicators with first sort criterion
     const criteria = parseSortCriteria(s);
     sortField = criteria[0]?.field || 'id';
     sortDir = criteria[0]?.dir || 'asc';
@@ -308,7 +294,6 @@
 
   import { STATUSES, STATUS_LABELS } from './lib/statuses';
 
-  // Kanban column visibility (moved from TaskGrid to header)
   const KANBAN_STATUS_ORDER = [...STATUSES];
 
   function loadVisibleStatuses(): Set<string> {
@@ -322,7 +307,6 @@
   let kanbanVisibleStatuses = $state(loadVisibleStatuses());
   let showColumnConfig = $state(false);
 
-  // Kanban column order (drag-rearrangeable)
   function loadKanbanOrder(): string[] {
     try {
       const saved = localStorage.getItem('kanbanStatusOrder');
@@ -354,7 +338,6 @@
     saveKanbanOrder();
   }
 
-  // Status CSS var mapping (same as TaskGrid)
   function statusCssVar(status: string): string {
     const map: Record<string, string> = {
       'WAITING_FOR_COMMAND_EXECUTION': 'waiting',
@@ -363,7 +346,6 @@
     return map[status] ?? status.toLowerCase();
   }
 
-  // Click-outside handler for columns dropdown
   function handleColumnsClickOutside(e: MouseEvent) {
     const dropdown = (e.target as HTMLElement).closest('.columns-dropdown');
     if (!dropdown && showColumnConfig) {
@@ -394,7 +376,7 @@
   });
 </script>
 
-<div class="layout">
+<div class="flex min-h-screen">
   <BoardSidebar
     {boards}
     selected={selectedBoard}
@@ -408,13 +390,13 @@
     ontogglearchived={toggleArchivedBoards}
   />
 
-  <div class="main">
-    <header>
-      <div class="header-left">
-        <h1>
+  <div class="flex-1 min-w-0 flex flex-col">
+    <header class="flex flex-wrap md:flex-nowrap justify-between items-center px-2 md:px-4 py-2 border-b border-border sticky top-0 z-50 bg-surface gap-1">
+      <div class="hidden md:flex items-center gap-3">
+        <h1 class="text-base font-semibold ml-10">
           {#if selectedBoard && editingBoardName}
             <input
-              class="board-name-input"
+              class="text-base font-semibold bg-bg text-text border border-primary rounded px-1.5 py-0.5 w-[200px]"
               type="text"
               bind:value={editBoardNameValue}
               onkeydown={(e) => { if (e.key === 'Enter') saveBoardName(); if (e.key === 'Escape') cancelEditBoardName(); }}
@@ -423,70 +405,70 @@
             />
           {:else if selectedBoard}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <span class="board-name-text" ondblclick={startEditBoardName}>{selectedBoard.name}</span>
+            <span class="cursor-default select-none" ondblclick={startEditBoardName}>{selectedBoard.name}</span>
           {:else}
             TaskPlanner
           {/if}
         </h1>
       </div>
       {#if selectedBoard && !showUsers && !loading && !boardsLoading}
-        <div class="header-toolbar">
+        <div class="flex-1 min-w-0 px-0 md:px-4 order-3 md:order-none w-full md:w-auto header-toolbar">
           <FilterBar onfilter={handleFilter} onsort={handleSortStr} initial={filterStr} initialSort={sortStr} />
         </div>
       {/if}
-      <div class="header-actions">
+      <div class="flex items-center gap-1 md:gap-2 shrink-0 flex-wrap w-full md:w-auto justify-start">
         {#if view === 'card'}
-          <div class="columns-dropdown">
-            <button class="columns-btn" onclick={() => showColumnConfig = !showColumnConfig}>
-              Columns {showColumnConfig ? '▲' : '▼'}
+          <div class="columns-dropdown relative">
+            <button class="bg-bg text-text-secondary text-xs py-1 px-3 border border-border rounded cursor-pointer hover:text-text" onclick={() => showColumnConfig = !showColumnConfig}>
+              Columns {showColumnConfig ? '\u25B2' : '\u25BC'}
             </button>
             {#if showColumnConfig}
-              <div class="columns-picker">
+              <div class="absolute top-full right-0 z-10 bg-surface border border-border rounded-md py-2 px-3 flex flex-col gap-1.5 min-w-[180px] shadow-[0_4px_12px_rgba(0,0,0,0.2)]">
                 {#each kanbanStatusOrder as status, i}
-                  <label class="col-check" draggable="true"
+                  <label class="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer" draggable="true"
                     ondragstart={() => handleDragStart(i)}
                     ondragover={(e) => handleDragOver(e, i)}
                     ondragend={handleDragEnd}>
-                    <span class="drag-handle">⠿</span>
+                    <span class="cursor-grab opacity-40 text-sm leading-none select-none hover:opacity-80">&#x2807;</span>
                     <input type="checkbox" checked={kanbanVisibleStatuses.has(status)} onchange={() => toggleKanbanStatus(status)} />
-                    <span class="col-check-dot" style="background: var(--status-{statusCssVar(status)})"></span>
+                    <span class="w-2 h-2 rounded-full shrink-0" style="background: var(--status-{statusCssVar(status)})"></span>
                     {STATUS_LABELS[status as keyof typeof STATUS_LABELS]}
                   </label>
                 {/each}
-                <button class="show-all-btn" onclick={showAllKanbanStatuses}>Show all</button>
+                <button class="bg-none border-none text-primary text-xs py-1 px-0 cursor-pointer text-left" onclick={showAllKanbanStatuses}>Show all</button>
               </div>
             {/if}
           </div>
         {/if}
-        <button class="live-toggle" class:on={autoUpdate} onclick={toggleAutoUpdate} title={autoUpdate ? 'Auto-update ON' : 'Auto-update OFF'}>
-          <span class="live-track"><span class="live-knob"></span></span>
-          <span class="live-label" class:disconnected={autoUpdate && !sseConnected}>{autoUpdate ? (sseConnected ? 'Live' : 'Disconnected') : 'Paused'}</span>
+        <button class="live-toggle flex items-center gap-1.5 bg-none p-1 border-none cursor-pointer {autoUpdate ? 'on' : ''}" onclick={toggleAutoUpdate} title={autoUpdate ? 'Auto-update ON' : 'Auto-update OFF'}>
+          <span class="live-track w-[34px] h-[18px] rounded-[9px] bg-border flex items-center p-0.5 transition-colors duration-200"><span class="w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 live-knob"></span></span>
+          <span class="text-xs text-text-secondary select-none live-label {autoUpdate && !sseConnected ? 'disconnected' : ''}">{autoUpdate ? (sseConnected ? 'Live' : 'Disconnected') : 'Paused'}</span>
         </button>
         <UserIdentity selected={currentUser} onchange={(u) => currentUser = u} />
         <ThemeToggle />
         <ViewToggle {view} onchange={(v) => { view = v; writeURL(); }} />
         {#if selectedBoard}
-          <button class="new-task-btn" onclick={() => showForm = true}>+ New Task</button>
+          <button class="bg-primary text-white font-semibold py-2 px-5 hover:bg-primary-hover" onclick={() => showForm = true}>+ New Task</button>
         {/if}
       </div>
     </header>
 
-    <main>
+    <main class="flex-1 dark-main">
       {#if showUsers}
         <UsersPage onclose={() => showUsers = false} />
       {:else if boardsLoading}
-        <p class="center loading-indicator"><span class="spinner"></span> Loading boards...</p>
+        <p class="text-center py-10 text-text-secondary flex items-center justify-center gap-2.5"><span class="inline-block w-[18px] h-[18px] border-[2.5px] border-border border-t-primary rounded-full animate-spin"></span> Loading boards...</p>
       {:else if boards.length === 0}
-        <div class="center">
+        <div class="text-center py-10 text-text-secondary">
           <p>No boards yet. Create your first board to get started.</p>
         </div>
       {:else if !selectedBoard}
-        <p class="center">Select a board to view tasks.</p>
+        <p class="text-center py-10 text-text-secondary">Select a board to view tasks.</p>
       {:else if loading}
-        <p class="center loading-indicator"><span class="spinner"></span> Loading tasks...</p>
+        <p class="text-center py-10 text-text-secondary flex items-center justify-center gap-2.5"><span class="inline-block w-[18px] h-[18px] border-[2.5px] border-border border-t-primary rounded-full animate-spin"></span> Loading tasks...</p>
       {:else if error}
-        <p class="center error">{error}</p>
-        <button class="retry" onclick={loadTasks}>Retry</button>
+        <p class="text-center py-10 text-[color:var(--importance-high)]">{error}</p>
+        <button class="block mx-auto bg-bg text-text" onclick={loadTasks}>Retry</button>
       {:else}
         {#if view === 'list'}
           <TaskList tasks={sortedTasks} onselect={handleSelect} {sortField} {sortDir} onsort={handleSort} />
@@ -519,242 +501,23 @@
 {/if}
 
 <style>
-  .layout {
-    display: flex;
-    min-height: 100vh;
-  }
-  .main {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--color-border);
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background: var(--color-surface);
-  }
-  h1 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-left: 40px;
-  }
-  .board-name-text {
-    cursor: default;
-    user-select: none;
-  }
-  .board-name-input {
-    font-size: 16px;
-    font-weight: 600;
-    background: var(--color-bg);
-    color: var(--color-text);
-    border: 1px solid var(--color-primary);
-    border-radius: 4px;
-    padding: 2px 6px;
-    width: 200px;
-  }
-  .header-toolbar {
-    flex: 1;
-    min-width: 0;
-    padding: 0 16px;
+  :global([data-theme="dark"]) .dark-main {
+    background: #101010;
   }
   .header-toolbar :global(.bar) {
     margin-bottom: 0;
     padding: 0;
   }
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  .live-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: none;
-    padding: 4px;
-    border: none;
-    cursor: pointer;
-  }
-  .live-track {
-    width: 34px;
-    height: 18px;
-    border-radius: 9px;
-    background: var(--color-border);
-    display: flex;
-    align-items: center;
-    padding: 2px;
-    transition: background 0.2s;
-  }
   .live-toggle.on .live-track {
     background: var(--status-new);
   }
-  .live-knob {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: white;
-    transition: transform 0.2s;
-  }
   .live-toggle.on .live-knob {
     transform: translateX(16px);
-  }
-  .live-label {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    user-select: none;
   }
   .live-toggle.on .live-label {
     color: var(--status-new);
   }
   .live-toggle.on .live-label.disconnected {
     color: #e74c3c;
-  }
-  .columns-dropdown {
-    position: relative;
-  }
-  .columns-btn {
-    background: var(--color-bg);
-    color: var(--color-text-secondary);
-    font-size: 12px;
-    padding: 4px 12px;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  .columns-btn:hover {
-    color: var(--color-text);
-  }
-  .columns-picker {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    z-index: 10;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    padding: 8px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 180px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  }
-  .col-check {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-  }
-  .col-check-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .drag-handle {
-    cursor: grab;
-    opacity: 0.4;
-    font-size: 14px;
-    line-height: 1;
-    user-select: none;
-  }
-  .drag-handle:hover {
-    opacity: 0.8;
-  }
-  .columns-picker .show-all-btn {
-    background: none;
-    border: none;
-    color: var(--color-primary);
-    font-size: 12px;
-    padding: 4px 0;
-    cursor: pointer;
-    text-align: left;
-  }
-  .new-task-btn {
-    background: var(--color-primary);
-    color: white;
-    font-weight: 600;
-    padding: 8px 20px;
-  }
-  .new-task-btn:hover {
-    background: var(--color-primary-hover);
-  }
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  main {
-    flex: 1;
-    padding: 0;
-  }
-  :global([data-theme="dark"]) main {
-    background: #101010;
-  }
-  .center {
-    text-align: center;
-    padding: 40px;
-    color: var(--color-text-secondary);
-  }
-  .error {
-    color: var(--importance-high);
-  }
-  .retry {
-    display: block;
-    margin: 0 auto;
-    background: var(--color-bg);
-    color: var(--color-text);
-  }
-  .loading-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-  }
-  .spinner {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    border: 2.5px solid var(--color-border);
-    border-top-color: var(--color-primary);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  @media (max-width: 768px) {
-    header {
-      flex-wrap: wrap;
-      padding: 6px 8px;
-      gap: 4px;
-    }
-    .header-left {
-      display: none;
-    }
-    .header-toolbar {
-      order: 3;
-      width: 100%;
-      padding: 0;
-    }
-    .header-actions {
-      gap: 4px;
-      flex-wrap: wrap;
-      width: 100%;
-      justify-content: flex-start;
-    }
-    main {
-      padding: 0;
-    }
   }
 </style>

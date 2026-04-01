@@ -34,7 +34,6 @@
       ]);
       [users, availableTags] = results;
     } catch {
-      // Non-critical — form works without users/tags
     } finally {
       loadingData = false;
     }
@@ -119,7 +118,6 @@
       });
       clearTimeout(timeout);
 
-      // Upload pending files after task creation
       for (const file of pendingFiles) {
         try {
           await uploadFile(boardId, task.id, file);
@@ -144,26 +142,26 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="overlay" onclick={oncancel} role="presentation">
+<div class="fixed inset-0 bg-black/40 flex justify-end z-[100]" onclick={oncancel} role="presentation">
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_interactive_supports_focus a11y_click_events_have_key_events -->
-  <div class="panel" onclick={(e) => e.stopPropagation()} onpaste={handlePaste} ondrop={handleDrop} ondragover={handleDragOver} role="dialog" aria-label="Create task" tabindex="-1">
-    <div class="panel-header">
-      <h2>New Task</h2>
-      <button class="close-btn" onclick={oncancel}>X</button>
+  <div class="bg-surface w-[min(70vw,1200px)] h-full overflow-y-auto p-6 shadow-[-4px_0_24px_rgba(0,0,0,0.15)]" onclick={(e) => e.stopPropagation()} onpaste={handlePaste} ondrop={handleDrop} ondragover={handleDragOver} role="dialog" aria-label="Create task" tabindex="-1">
+    <div class="flex justify-between items-center mb-5">
+      <h2 class="text-xl">New Task</h2>
+      <button class="bg-bg py-1.5 px-3 font-semibold text-text-secondary" onclick={oncancel}>X</button>
     </div>
 
-    <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-      <label>
+    <form class="flex flex-col gap-4" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+      <label class="flex flex-col gap-1 text-[13px] font-semibold text-text-secondary">
         Title *
         <input type="text" bind:value={title} placeholder="Task title" required />
       </label>
 
-      <label>
+      <label class="flex flex-col gap-1 text-[13px] font-semibold text-text-secondary">
         Description
-        <div class="desc-box">
-          <textarea bind:value={description} placeholder="Describe the task..." rows="3"></textarea>
-          <div class="desc-box-toolbar">
-            <label class="attach-btn-inline">
+        <div class="border border-border rounded-[--radius] overflow-hidden focus-within:border-primary">
+          <textarea bind:value={description} placeholder="Describe the task..." rows="3" class="border-none rounded-none w-full focus:outline-none focus:shadow-none"></textarea>
+          <div class="flex items-center py-1 px-2 border-t border-border bg-bg">
+            <label class="cursor-pointer text-text-secondary text-[13px] py-1 px-2 border border-dashed border-border rounded-[--radius] font-normal hover:text-primary hover:border-primary">
               <input type="file" multiple onchange={handleFileInput} style="display:none" />
               Attach files
             </label>
@@ -171,19 +169,19 @@
         </div>
       </label>
 
-      <div class="row">
-        <label class="half">
+      <div class="flex gap-4">
+        <label class="flex-1 flex flex-col gap-1 text-[13px] font-semibold text-text-secondary">
           Importance: {importance}
-          <input type="range" min="0" max="100" bind:value={importance} />
+          <input type="range" min="0" max="100" bind:value={importance} class="border-none p-0" />
         </label>
-        <label class="half">
+        <label class="flex-1 flex flex-col gap-1 text-[13px] font-semibold text-text-secondary">
           Estimated Effort
           <input type="number" min="0" step="0.5" bind:value={estimatedEffort} />
         </label>
       </div>
 
-      <label>
-        Assignee {#if loadingData}<span class="loading-hint">(loading...)</span>{/if}
+      <label class="flex flex-col gap-1 text-[13px] font-semibold text-text-secondary">
+        Assignee {#if loadingData}<span class="font-normal text-[11px] text-text-secondary">(loading...)</span>{/if}
         <select bind:value={assigneeUsername}>
           <option value={null}>Unassigned</option>
           {#each users as user (user.id)}
@@ -192,19 +190,19 @@
         </select>
       </label>
 
-      <label>
+      <label class="flex flex-col gap-1 text-[13px] font-semibold text-text-secondary">
         Parent Task
         <input type="number" min="0" bind:value={parentTaskId} placeholder="Parent task ID (optional)" />
       </label>
 
-      <label>
+      <label class="flex flex-col gap-1 text-[13px] font-semibold text-text-secondary">
         Tags
-        <div class="tag-input">
-          <div class="tag-chips">
+        <div class="flex flex-col gap-1.5">
+          <div class="flex flex-wrap gap-1">
             {#each tags as tag}
-              <span class="tag-chip">
+              <span class="bg-bg py-0.5 px-2 rounded-xl text-xs flex items-center gap-1">
                 {tag}
-                <button type="button" class="remove-tag" onclick={() => removeTag(tag)}>x</button>
+                <button type="button" class="bg-none p-0 px-0.5 text-xs text-text-secondary" onclick={() => removeTag(tag)}>x</button>
               </span>
             {/each}
           </div>
@@ -215,9 +213,9 @@
             placeholder="Type and press Enter"
           />
           {#if availableTags.length > 0}
-            <div class="tag-suggestions">
+            <div class="flex flex-wrap gap-1">
               {#each availableTags.filter(t => !tags.includes(t.name)) as tag (tag.id)}
-                <button type="button" class="tag-suggestion" onclick={() => { tags = [...tags, tag.name]; }}>
+                <button type="button" class="bg-bg text-xs py-0.5 px-2 rounded-xl text-primary" onclick={() => { tags = [...tags, tag.name]; }}>
                   + {tag.name}
                 </button>
               {/each}
@@ -227,228 +225,25 @@
       </label>
 
       {#if pendingFiles.length > 0}
-        <div class="file-upload">
+        <div class="flex flex-col gap-1.5">
           {#each pendingFiles as file, i}
-            <div class="pending-file">
-              <span class="pending-file-name">{file.name}</span>
-              <button type="button" class="remove-file" onclick={() => removePendingFile(i)}>x</button>
+            <div class="flex items-center gap-2 py-1 px-2 bg-bg rounded-[--radius] text-[13px]">
+              <span class="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-text font-normal">{file.name}</span>
+              <button type="button" class="bg-none p-0 px-1 text-xs text-text-secondary cursor-pointer" onclick={() => removePendingFile(i)}>x</button>
             </div>
           {/each}
         </div>
       {/if}
 
       {#if error}
-        <p class="error">{error}</p>
+        <p class="text-[color:var(--importance-high)] text-sm">{error}</p>
       {/if}
 
-      <div class="actions">
-        <button type="submit" class="submit" disabled={submitting}>
+      <div class="flex justify-end gap-2 mt-2">
+        <button type="submit" class="bg-primary text-white hover:bg-primary-hover disabled:opacity-50 disabled:cursor-default" disabled={submitting}>
           {submitting ? 'Creating...' : 'Create Task'}
         </button>
       </div>
     </form>
   </div>
 </div>
-
-<style>
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    justify-content: flex-end;
-    z-index: 100;
-  }
-  .panel {
-    background: var(--color-surface);
-    width: min(70vw, 1200px);
-    height: 100%;
-    overflow-y: auto;
-    padding: 24px;
-    box-shadow: -4px 0 24px rgba(0,0,0,0.15);
-  }
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  .close-btn {
-    background: var(--color-bg);
-    padding: 6px 12px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-  h2 {
-    font-size: 20px;
-  }
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-  .row {
-    display: flex;
-    gap: 16px;
-  }
-  .half {
-    flex: 1;
-  }
-  input[type="range"] {
-    border: none;
-    padding: 0;
-  }
-  .desc-box {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .desc-box:focus-within {
-    border-color: var(--color-primary);
-  }
-  .desc-box textarea {
-    border: none;
-    border-radius: 0;
-    width: 100%;
-  }
-  .desc-box textarea:focus {
-    outline: none;
-    box-shadow: none;
-  }
-  .desc-box-toolbar {
-    display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-bg);
-  }
-  .attach-btn-inline {
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    font-size: 13px;
-    padding: 4px 8px;
-    border: 1px dashed var(--color-border);
-    border-radius: var(--radius);
-    font-weight: 400;
-  }
-  .attach-btn-inline:hover {
-    color: var(--color-primary);
-    border-color: var(--color-primary);
-  }
-  .tag-input {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .tag-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .tag-chip {
-    background: var(--color-bg);
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .remove-tag {
-    background: none;
-    padding: 0 2px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
-  .tag-suggestions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .tag-suggestion {
-    background: var(--color-bg);
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 12px;
-    color: var(--color-primary);
-  }
-  .loading-hint {
-    font-weight: 400;
-    font-size: 11px;
-    color: var(--color-text-secondary);
-  }
-  .error {
-    color: var(--importance-high);
-    font-size: 14px;
-  }
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 8px;
-  }
-  .submit {
-    background: var(--color-primary);
-    color: white;
-  }
-  .submit:hover:not(:disabled) {
-    background: var(--color-primary-hover);
-  }
-  .submit:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .file-upload {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .pending-file {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    background: var(--color-bg);
-    border-radius: var(--radius);
-    font-size: 13px;
-  }
-  .pending-file-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--color-text);
-    font-weight: 400;
-  }
-  .remove-file {
-    background: none;
-    padding: 0 4px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-  }
-  .upload-area {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px;
-    border: 2px dashed var(--color-border);
-    border-radius: var(--radius);
-    color: var(--color-text-secondary);
-    font-size: 13px;
-    font-weight: 400;
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .upload-area:hover {
-    border-color: var(--color-primary);
-  }
-</style>

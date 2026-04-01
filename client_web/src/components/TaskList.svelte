@@ -58,46 +58,55 @@
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  function statusCssVar(status: string): string {
+    const map: Record<string, string> = {
+      'WAITING_FOR_COMMAND_EXECUTION': 'waiting',
+      'NOT_REPRODUCIBLE': 'not-reproducible',
+    };
+    return map[status] ?? status.toLowerCase();
+  }
+
   function sortIndicator(key: string): string {
     if (sortField !== key) return '';
-    return sortDir === 'asc' ? ' ▲' : ' ▼';
+    return sortDir === 'asc' ? ' \u25B2' : ' \u25BC';
   }
 </script>
 
-<div class="table-wrapper">
-  <table>
+<div class="overflow-x-auto">
+  <table class="w-full border-collapse bg-transparent rounded-[--radius] overflow-hidden">
     <thead>
       <tr>
-        {#each COLUMNS as col}
+        {#each COLUMNS as col, i}
           {#if col.sortable && onsort}
-            <th class="sortable" onclick={() => onsort(col.key)}>
+            <th class="text-left py-3 px-4 text-xs font-semibold uppercase text-text-secondary border-b-2 border-border select-none cursor-pointer hover:text-text {i >= 3 ? 'hidden md:table-cell' : ''} md:py-3 md:px-4 md:text-xs"
+              onclick={() => onsort(col.key)}>
               {col.label}{sortIndicator(col.key)}
             </th>
           {:else}
-            <th>{col.label}</th>
+            <th class="text-left py-3 px-4 text-xs font-semibold uppercase text-text-secondary border-b-2 border-border select-none {i >= 3 ? 'hidden md:table-cell' : ''}">{col.label}</th>
           {/if}
         {/each}
       </tr>
     </thead>
     <tbody>
       {#each tasks as task (task.id)}
-        <tr onclick={() => onselect(task)} class="row">
-          <td class="id">#{task.id}</td>
-          <td class="title">{task.title}</td>
-          <td>
-            <span class="badge badge-{task.status.toLowerCase()}">{statusLabel(task.status)}</span>
+        <tr onclick={() => onselect(task)} class="cursor-pointer transition-[background] duration-100 hover:bg-bg">
+          <td class="py-3 px-4 border-b border-border text-sm text-text-secondary tabular-nums">#{task.id}</td>
+          <td class="py-3 px-4 border-b border-border text-sm font-medium">{task.title}</td>
+          <td class="py-3 px-4 border-b border-border text-sm">
+            <span class="badge text-[11px] font-semibold py-0.5 px-2 rounded-xl uppercase whitespace-nowrap" style="--badge-color: var(--status-{statusCssVar(task.status)})">{statusLabel(task.status)}</span>
           </td>
-          <td>
-            <span class="importance" style="color: {importanceColor(task.importance)}">{task.importance}</span>
+          <td class="py-3 px-4 border-b border-border text-sm hidden md:table-cell">
+            <span class="font-bold" style="color: {importanceColor(task.importance)}">{task.importance}</span>
           </td>
-          <td class="assignee" class:unassigned={!task.assignee_name}>{task.assignee_name ?? 'Unassigned'}</td>
-          <td class="created">
+          <td class="py-3 px-4 border-b border-border text-sm text-text-secondary hidden md:table-cell {!task.assignee_name ? 'opacity-50 italic' : ''}">{task.assignee_name ?? 'Unassigned'}</td>
+          <td class="py-3 px-4 border-b border-border text-xs text-text-secondary whitespace-nowrap hidden md:table-cell">
             {formatCreatedTime(task.created_time)}
           </td>
-          <td class="tags-cell">
-            <div class="tags-wrap">
+          <td class="py-3 px-4 border-b border-border text-sm hidden md:table-cell">
+            <div class="flex flex-wrap gap-1">
               {#each task.tags as tag}
-                <span class="tag">{tag}</span>
+                <span class="bg-bg text-text-secondary text-xs py-0.5 px-2 rounded-xl">{tag}</span>
               {/each}
             </div>
           </td>
@@ -105,7 +114,7 @@
       {/each}
       {#if tasks.length === 0}
         <tr>
-          <td colspan="7" class="empty">No tasks found.</td>
+          <td colspan="7" class="text-center text-text-secondary py-10">No tasks found.</td>
         </tr>
       {/if}
     </tbody>
@@ -113,127 +122,13 @@
 </div>
 
 <style>
-  .table-wrapper {
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: transparent;
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  th {
-    text-align: left;
-    padding: 12px 16px;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--color-text-secondary);
-    border-bottom: 2px solid var(--color-border);
-    user-select: none;
-  }
-  th.sortable {
-    cursor: pointer;
-  }
-  th.sortable:hover {
-    color: var(--color-text);
-  }
-  td {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--color-border);
-    font-size: 14px;
-  }
-  .row {
-    cursor: pointer;
-    transition: background 0.1s;
-  }
-  .row:hover {
-    background: var(--color-bg);
-  }
-  .id {
-    color: var(--color-text-secondary);
-    font-variant-numeric: tabular-nums;
-  }
-  .title {
-    font-weight: 500;
-  }
   .badge {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 12px;
-    text-transform: uppercase;
-    white-space: nowrap;
     color: white;
+    background: var(--badge-color);
   }
-  .badge-new { background: var(--status-new); }
-  .badge-started { background: var(--status-started); }
-  .badge-waiting_for_more_info,
-  .badge-waiting_for_command_execution { background: var(--status-waiting); }
-  .badge-blocked { background: var(--status-blocked); }
-  .badge-done { background: var(--status-done); }
-  .badge-not_reproducible { background: var(--status-not-reproducible); }
-  .badge-cancelled { background: var(--status-cancelled); }
   :global([data-theme="dark"]) .badge {
-    color: inherit;
+    color: var(--badge-color);
     background: none;
-    border: 1.5px solid;
-  }
-  :global([data-theme="dark"]) .badge-new { color: var(--status-new); border-color: var(--status-new); }
-  :global([data-theme="dark"]) .badge-started { color: var(--status-started); border-color: var(--status-started); }
-  :global([data-theme="dark"]) .badge-waiting_for_more_info,
-  :global([data-theme="dark"]) .badge-waiting_for_command_execution { color: var(--status-waiting); border-color: var(--status-waiting); }
-  :global([data-theme="dark"]) .badge-blocked { color: var(--status-blocked); border-color: var(--status-blocked); }
-  :global([data-theme="dark"]) .badge-done { color: var(--status-done); border-color: var(--status-done); }
-  :global([data-theme="dark"]) .badge-not_reproducible { color: var(--status-not-reproducible); border-color: var(--status-not-reproducible); }
-  :global([data-theme="dark"]) .badge-cancelled { color: var(--status-cancelled); border-color: var(--status-cancelled); }
-  .importance {
-    font-weight: 700;
-  }
-  .assignee {
-    color: var(--color-text-secondary);
-  }
-  .assignee.unassigned {
-    color: var(--color-text-secondary);
-    opacity: 0.5;
-    font-style: italic;
-  }
-  .created {
-    color: var(--color-text-secondary);
-    font-size: 12px;
-    white-space: nowrap;
-  }
-  .tags-cell {
-  }
-  .tags-cell .tags-wrap {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .tag {
-    background: var(--color-bg);
-    color: var(--color-text-secondary);
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 12px;
-  }
-  .empty {
-    text-align: center;
-    color: var(--color-text-secondary);
-    padding: 40px;
-  }
-  @media (max-width: 768px) {
-    th:nth-child(n+4), td:nth-child(n+4) {
-      display: none;
-    }
-    th {
-      padding: 8px 10px;
-      font-size: 11px;
-    }
-    td {
-      padding: 8px 10px;
-      font-size: 13px;
-    }
+    border: 1.5px solid var(--badge-color);
   }
 </style>

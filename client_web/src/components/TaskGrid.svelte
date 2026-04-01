@@ -15,13 +15,11 @@
 
   const STATUS_ORDER = [...STATUSES];
 
-  // Load visible statuses from localStorage (fallback when no prop provided)
   function loadVisibleStatuses(): Set<string> {
     try {
       const saved = localStorage.getItem('kanbanVisibleStatuses');
       if (saved) return new Set(JSON.parse(saved));
     } catch {}
-    // Default: show active statuses
     return new Set(['NEW', 'STARTED', 'BLOCKED', 'WAITING_FOR_COMMAND_EXECUTION']);
   }
 
@@ -51,16 +49,16 @@
 </script>
 
 {#if tasks.length === 0 && !groupByStatus}
-  <p class="empty">No tasks found.</p>
+  <p class="text-text-secondary text-center py-10 px-10">No tasks found.</p>
 {:else if groupByStatus && grouped}
-  <div class="kanban">
+  <div class="flex flex-col md:flex-row gap-3 md:gap-2 overflow-x-auto px-4 pt-3 pb-2 items-start h-full">
     {#each grouped as group (group.status)}
-      <div class="kanban-col" style="background: color-mix(in srgb, var(--status-{statusCssVar(group.status)}) 8%, var(--color-bg))">
-        <h3 class="col-header" style="color: var(--status-{statusCssVar(group.status)})">
-          <span class="col-dot" style="background: var(--status-{statusCssVar(group.status)})"></span>
+      <div class="w-full md:flex-1 md:min-w-60 md:max-w-80 rounded-lg px-2 pt-0.5 pb-1.5" style="background: color-mix(in srgb, var(--status-{statusCssVar(group.status)}) 8%, var(--color-bg))">
+        <h3 class="text-sm font-semibold mb-0.5 flex items-center gap-2" style="color: var(--status-{statusCssVar(group.status)})">
+          <span class="w-2 h-2 rounded-full inline-block shrink-0" style="background: var(--status-{statusCssVar(group.status)})"></span>
           {group.label}
         </h3>
-        <div class="col-cards">
+        <div class="flex flex-col gap-2 min-h-5">
           {#each group.tasks as task (task.id)}
             <TaskCard {task} onclick={onselect} minimal />
           {/each}
@@ -69,72 +67,9 @@
     {/each}
   </div>
 {:else}
-  <div class="grid">
+  <div class="grid grid-cols-1 md:grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
     {#each tasks as task (task.id)}
       <TaskCard {task} onclick={onselect} />
     {/each}
   </div>
 {/if}
-
-<style>
-  .kanban {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 12px 16px 8px;
-    align-items: flex-start;
-    height: 100%;
-  }
-  .kanban-col {
-    flex: 1;
-    min-width: 240px;
-    max-width: 320px;
-    border-radius: 8px;
-    padding: 2px 8px 6px;
-  }
-  .col-header {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 2px;
-    padding-bottom: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .col-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-height: 20px;
-  }
-  .col-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    flex-shrink: 0;
-  }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-  }
-  .empty {
-    color: var(--color-text-secondary);
-    text-align: center;
-    padding: 40px;
-  }
-  @media (max-width: 768px) {
-    .kanban {
-      flex-direction: column;
-      gap: 12px;
-    }
-    .kanban-col {
-      max-width: none;
-      min-width: auto;
-    }
-    .grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>

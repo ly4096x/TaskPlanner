@@ -54,18 +54,17 @@
   }
 </script>
 
-<div class="board-selector">
-  <button class="selector-btn" onclick={toggle}>
+<div class="relative">
+  <button class="bg-bg text-text py-2 px-4 font-semibold flex items-center gap-2 cursor-pointer rounded-[--radius]" onclick={toggle}>
     {selected ? selected.name : 'Select board'}
-    <span class="arrow">{open ? '\u25B2' : '\u25BC'}</span>
+    <span class="text-[10px] text-text-secondary">{open ? '\u25B2' : '\u25BC'}</span>
   </button>
 
   {#if open}
-    <div class="dropdown">
+    <div class="absolute top-full left-0 min-w-[200px] bg-surface border border-border rounded-[--radius] shadow-[0_4px_16px_rgba(0,0,0,0.15)] z-50 mt-1 overflow-hidden">
       {#each boards as board (board.id)}
         <button
-          class="board-item"
-          class:active={selected?.id === board.id}
+          class="block w-full text-left py-2.5 px-4 bg-none border-none rounded-none text-text cursor-pointer text-sm hover:bg-bg {selected?.id === board.id ? 'bg-bg font-semibold' : ''}"
           onclick={() => selectBoard(board)}
         >
           {board.name}
@@ -73,132 +72,27 @@
       {/each}
 
       {#if creating}
-        <div class="create-form">
+        <div class="px-4 py-3 border-t border-border flex flex-col gap-2">
           <input
             type="text"
             bind:value={newName}
             placeholder="Board name"
+            class="text-sm py-1.5 px-2.5"
             onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreate(); } }}
           />
           {#if error}
-            <p class="error">{error}</p>
+            <p class="text-[color:var(--importance-high)] text-xs m-0">{error}</p>
           {/if}
-          <div class="create-actions">
-            <button type="button" class="cancel-btn" onclick={() => { creating = false; newName = ''; error = ''; }}>Cancel</button>
-            <button type="button" class="create-btn" onclick={handleCreate} disabled={submitting}>
+          <div class="flex gap-2 justify-end">
+            <button class="bg-bg text-text py-1 px-3 text-[13px]" onclick={() => { creating = false; newName = ''; error = ''; }}>Cancel</button>
+            <button class="bg-primary text-white py-1 px-3 text-[13px] disabled:opacity-50 disabled:cursor-default" onclick={handleCreate} disabled={submitting}>
               {submitting ? 'Creating...' : 'Create'}
             </button>
           </div>
         </div>
       {:else}
-        <button class="new-board-btn" onclick={() => creating = true}>+ New Board</button>
+        <button class="block w-full text-left py-2.5 px-4 bg-none border-none border-t border-t-border rounded-none text-primary cursor-pointer text-sm font-semibold hover:bg-bg" onclick={() => creating = true}>+ New Board</button>
       {/if}
     </div>
   {/if}
 </div>
-
-<style>
-  .board-selector {
-    position: relative;
-  }
-  .selector-btn {
-    background: var(--color-bg);
-    color: var(--color-text);
-    padding: 8px 16px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-  }
-  .arrow {
-    font-size: 10px;
-    color: var(--color-text-secondary);
-  }
-  .dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    min-width: 200px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    z-index: 50;
-    margin-top: 4px;
-    overflow: hidden;
-  }
-  .board-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 10px 16px;
-    background: none;
-    border: none;
-    border-radius: 0;
-    color: var(--color-text);
-    cursor: pointer;
-    font-size: 14px;
-  }
-  .board-item:hover {
-    background: var(--color-bg);
-  }
-  .board-item.active {
-    background: var(--color-bg);
-    font-weight: 600;
-  }
-  .new-board-btn {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 10px 16px;
-    background: none;
-    border: none;
-    border-top: 1px solid var(--color-border);
-    border-radius: 0;
-    color: var(--color-primary);
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .new-board-btn:hover {
-    background: var(--color-bg);
-  }
-  .create-form {
-    padding: 12px 16px;
-    border-top: 1px solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .create-form input {
-    font-size: 14px;
-    padding: 6px 10px;
-  }
-  .error {
-    color: var(--importance-high);
-    font-size: 12px;
-    margin: 0;
-  }
-  .create-actions {
-    display: flex;
-    gap: 8px;
-    justify-content: flex-end;
-  }
-  .cancel-btn {
-    background: var(--color-bg);
-    color: var(--color-text);
-    padding: 4px 12px;
-    font-size: 13px;
-  }
-  .create-btn {
-    background: var(--color-primary);
-    color: white;
-    padding: 4px 12px;
-    font-size: 13px;
-  }
-  .create-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-</style>

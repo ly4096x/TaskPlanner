@@ -47,8 +47,8 @@
   }
 </script>
 
-<aside class="sidebar" class:collapsed>
-  <button class="tab" class:tab-collapsed={collapsed} onclick={ontoggle} title={collapsed ? 'Show boards' : 'Hide boards'}>
+<aside class="sidebar sticky top-0 h-screen flex shrink-0 z-[51] {collapsed ? 'collapsed' : ''}">
+  <button class="tab absolute top-0 z-[51] w-8 h-10 bg-surface border border-border border-l-0 rounded-r-md text-text-secondary flex items-center justify-center cursor-pointer p-0 hover:bg-bg hover:text-text {collapsed ? 'left-0 rounded-r-md' : 'right-[-32px]'}" onclick={ontoggle} title={collapsed ? 'Show boards' : 'Hide boards'}>
     <svg width="8" height="14" viewBox="0 0 8 14" fill="none">
       {#if collapsed}
         <path d="M1 1L7 7L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -58,48 +58,48 @@
     </svg>
   </button>
 
-  <div class="sidebar-inner">
-    <div class="sidebar-header">
-      <span class="sidebar-title">Boards</span>
+  <div class="sidebar-inner w-[220px] bg-surface border-r border-border flex flex-col overflow-hidden transition-[width] duration-200">
+    <div class="px-3 pt-4 pb-3 border-b border-border flex items-center justify-between">
+      <span class="text-[13px] font-bold uppercase tracking-wide text-text-secondary">Boards</span>
       {#if !creating}
-        <button class="add-board-btn" onclick={() => creating = true} title="New board">+</button>
+        <button class="bg-none border-none text-text-secondary text-lg p-0 px-1 cursor-pointer leading-none hover:text-primary" onclick={() => creating = true} title="New board">+</button>
       {/if}
     </div>
 
   {#if creating}
-    <div class="create-form">
+    <div class="px-3 py-2.5 border-t border-border flex flex-col gap-1.5">
       <input
         type="text"
         bind:value={newName}
         placeholder="Board name"
+        class="text-[13px] py-1.5 px-2"
         onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreate(); } if (e.key === 'Escape') { creating = false; newName = ''; error = ''; } }}
       />
       {#if error}
-        <p class="error">{error}</p>
+        <p class="text-[color:var(--importance-high)] text-xs m-0">{error}</p>
       {/if}
-      <div class="create-actions">
-        <button class="cancel-btn" onclick={() => { creating = false; newName = ''; error = ''; }}>Cancel</button>
-        <button class="create-btn" onclick={handleCreate} disabled={submitting}>
+      <div class="flex gap-1.5 justify-end">
+        <button class="bg-bg text-text py-1 px-2.5 text-xs" onclick={() => { creating = false; newName = ''; error = ''; }}>Cancel</button>
+        <button class="bg-primary text-white py-1 px-2.5 text-xs disabled:opacity-50 disabled:cursor-default" onclick={handleCreate} disabled={submitting}>
           {submitting ? '...' : 'Create'}
         </button>
       </div>
     </div>
   {/if}
 
-  <nav class="board-list">
+  <nav class="flex-1 overflow-y-auto py-2">
     {#each boards.filter(b => !b.archived) as board (board.id)}
-      <div class="board-row" class:active={selected?.id === board.id}>
+      <div class="board-row flex items-center transition-[background] duration-100 hover:bg-bg {selected?.id === board.id ? 'active border-l-[3px] border-l-primary bg-bg' : ''}">
         <button
-          class="board-item"
-          class:active={selected?.id === board.id}
+          class="flex items-center gap-2 flex-1 min-w-0 text-left py-2 pr-1 bg-none border-none rounded-none text-text cursor-pointer text-sm {selected?.id === board.id ? 'font-semibold pl-[9px]' : 'pl-3'}"
           onclick={() => selectBoard(board)}
           title={board.description || board.name}
         >
-          <span class="board-icon">■</span>
-          <span class="board-name">{board.name}</span>
+          <span class="text-primary text-[10px] shrink-0">&block;</span>
+          <span class="overflow-hidden text-ellipsis whitespace-nowrap">{board.name}</span>
         </button>
         <button
-          class="archive-btn"
+          class="archive-btn bg-none border-none text-text-secondary cursor-pointer py-1 px-2 text-xs opacity-0 transition-opacity duration-100 shrink-0 hover:text-text"
           onclick={() => onarchive(board)}
           title="Archive board"
         >
@@ -112,18 +112,17 @@
 
     {#if showArchived}
       {#each boards.filter(b => b.archived) as board (board.id)}
-        <div class="board-row archived" class:active={selected?.id === board.id}>
+        <div class="board-row flex items-center transition-[background] duration-100 opacity-60 hover:bg-bg {selected?.id === board.id ? 'active border-l-[3px] border-l-primary bg-bg' : ''}">
           <button
-            class="board-item"
-            class:active={selected?.id === board.id}
+            class="flex items-center gap-2 flex-1 min-w-0 text-left py-2 pr-1 bg-none border-none rounded-none text-text cursor-pointer text-sm {selected?.id === board.id ? 'font-semibold pl-[9px]' : 'pl-3'}"
             onclick={() => selectBoard(board)}
             title={board.description || board.name}
           >
-            <span class="board-icon archived-icon">■</span>
-            <span class="board-name">{board.name}</span>
+            <span class="text-text-secondary text-[10px] shrink-0">&block;</span>
+            <span class="overflow-hidden text-ellipsis whitespace-nowrap">{board.name}</span>
           </button>
           <button
-            class="archive-btn"
+            class="archive-btn bg-none border-none text-text-secondary cursor-pointer py-1 px-2 text-xs opacity-0 transition-opacity duration-100 shrink-0 hover:text-text"
             onclick={() => onarchive(board)}
             title="Unarchive board"
           >
@@ -136,232 +135,32 @@
     {/if}
   </nav>
 
-  <div class="sidebar-footer">
-    <button class="footer-btn" onclick={ontogglearchived}>
+  <div class="sidebar-footer border-t border-border py-2">
+    <button class="block w-full text-left py-2 px-3 bg-none border-none rounded-none text-text-secondary cursor-pointer text-[13px] hover:bg-bg hover:text-text" onclick={ontogglearchived}>
       {showArchived ? 'Hide archived' : 'Archived boards'}
     </button>
-    <button class="footer-btn" onclick={onusers}>Users</button>
+    <button class="block w-full text-left py-2 px-3 bg-none border-none rounded-none text-text-secondary cursor-pointer text-[13px] hover:bg-bg hover:text-text" onclick={onusers}>Users</button>
   </div>
   </div>
 </aside>
 
 {#if !collapsed}
-  <div class="sidebar-backdrop" onclick={ontoggle} role="presentation"></div>
+  <div class="sidebar-backdrop hidden" onclick={ontoggle} role="presentation"></div>
 {/if}
 
 <style>
-  .sidebar {
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    display: flex;
-    flex-shrink: 0;
-    z-index: 51;
-  }
-  .sidebar-inner {
-    width: 220px;
-    background: var(--color-surface);
-    border-right: 1px solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    transition: width 0.2s;
+  .board-row:hover .archive-btn {
+    opacity: 1;
   }
   .sidebar.collapsed .sidebar-inner {
     width: 0;
     border-right: none;
   }
-  .tab {
-    position: absolute;
-    top: 0px;
-    right: -32px;
-    z-index: 51;
-    width: 32px;
-    height: 40px;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-left: none;
-    border-radius: 0 6px 6px 0;
-    color: var(--color-text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    padding: 0;
-  }
-  .tab-collapsed {
-    right: auto;
-    left: 0;
-    border-left: none;
-    border-radius: 0 6px 6px 0;
-  }
-  .tab:hover {
-    background: var(--color-bg);
-    color: var(--color-text);
-  }
-  .sidebar-header {
-    padding: 16px 12px 12px;
-    border-bottom: 1px solid var(--color-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .add-board-btn {
-    background: none;
-    border: none;
-    color: var(--color-text-secondary);
-    font-size: 18px;
-    padding: 0 4px;
-    cursor: pointer;
-    line-height: 1;
-  }
-  .add-board-btn:hover {
-    color: var(--color-primary);
-  }
-  .sidebar-title {
-    font-size: 13px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--color-text-secondary);
-  }
-  .board-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 0;
-  }
-  .board-row {
-    display: flex;
-    align-items: center;
-    transition: background 0.1s;
-  }
-  .board-row:hover {
-    background: var(--color-bg);
-  }
-  .board-row:hover .archive-btn {
-    opacity: 1;
-  }
-  .board-row.active {
-    border-left: 3px solid var(--color-primary);
-    background: var(--color-bg);
-  }
-  .board-row.archived {
-    opacity: 0.6;
-  }
-  .board-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-    text-align: left;
-    padding: 8px 4px 8px 12px;
-    background: none;
-    border: none;
-    border-radius: 0;
-    color: var(--color-text);
-    cursor: pointer;
-    font-size: 14px;
-  }
-  .board-row.active .board-item {
-    font-weight: 600;
-    padding-left: 9px;
-  }
-  .archive-btn {
-    background: none;
-    border: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    padding: 4px 8px;
-    font-size: 12px;
-    opacity: 0;
-    transition: opacity 0.1s;
-    flex-shrink: 0;
-  }
-  .archive-btn:hover {
-    color: var(--color-text);
-  }
-  .archived-icon {
-    color: var(--color-text-secondary) !important;
-  }
-  .board-icon {
-    color: var(--color-primary);
-    font-size: 10px;
-    flex-shrink: 0;
-  }
-  .board-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .sidebar-footer {
-    border-top: 1px solid var(--color-border);
-    padding: 8px 0;
-  }
-  .footer-btn {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 8px 12px;
-    background: none;
-    border: none;
-    border-radius: 0;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    font-size: 13px;
-  }
-  .footer-btn:hover {
-    background: var(--color-bg);
-    color: var(--color-text);
-  }
-  .create-form {
-    padding: 10px 12px;
-    border-top: 1px solid var(--color-border);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .create-form input {
-    font-size: 13px;
-    padding: 6px 8px;
-  }
-  .error {
-    color: var(--importance-high);
-    font-size: 12px;
-    margin: 0;
-  }
-  .create-actions {
-    display: flex;
-    gap: 6px;
-    justify-content: flex-end;
-  }
-  .cancel-btn {
-    background: var(--color-bg);
-    color: var(--color-text);
-    padding: 4px 10px;
-    font-size: 12px;
-  }
-  .create-btn {
-    background: var(--color-primary);
-    color: white;
-    padding: 4px 10px;
-    font-size: 12px;
-  }
-  .create-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .sidebar-backdrop {
-    display: none;
-  }
   @media (max-width: 768px) {
     .sidebar-backdrop {
       display: block;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: 0;
       z-index: 99;
       background: rgba(0, 0, 0, 0.5);
     }

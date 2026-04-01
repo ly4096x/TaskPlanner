@@ -37,46 +37,14 @@
   });
 </script>
 
-<div class="theme-switch">
-  {#each OPTIONS as opt}
+<div class="flex border border-border rounded-md overflow-hidden">
+  {#each OPTIONS as opt, i}
     <button
-      class="theme-opt"
-      class:active={theme === opt.value}
+      class="bg-transparent text-text-secondary border-none px-2 py-1 text-sm cursor-pointer flex items-center leading-none hover:text-text hover:bg-bg {theme === opt.value ? 'bg-primary !text-white' : ''} {i > 0 ? 'border-l border-border' : ''}"
       onclick={() => setTheme(opt.value)}
       title={opt.label}
     >
-      <span class="icon">{opt.icon}</span>
+      <span>{opt.icon}</span>
     </button>
   {/each}
 </div>
-
-<style>
-  .theme-switch {
-    display: flex;
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-  .theme-opt {
-    background: transparent;
-    color: var(--color-text-secondary);
-    border: none;
-    padding: 4px 8px;
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    line-height: 1;
-  }
-  .theme-opt:hover {
-    color: var(--color-text);
-    background: var(--color-bg);
-  }
-  .theme-opt.active {
-    background: var(--color-primary);
-    color: white;
-  }
-  .theme-opt + .theme-opt {
-    border-left: 1px solid var(--color-border);
-  }
-</style>

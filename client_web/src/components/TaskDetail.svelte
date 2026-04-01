@@ -28,7 +28,6 @@
   let editAssigneeId = $state<number | null>(null);
   let editParentId = $state<string>('');
 
-  // Sync edit fields from task prop
   $effect.pre(() => {
     editTitle = task.title;
     editDescription = task.description;
@@ -150,7 +149,6 @@
     saving = true;
     saveError = '';
     try {
-      // Find the selected user's username for the assignee field
       const selectedUser = users.find(u => u.id === editAssigneeId);
       const parentVal = editParentId.trim();
       const parentTaskId = parentVal === '' || parentVal === '0' ? null : parseInt(parentVal);
@@ -225,53 +223,55 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="overlay" onclick={onclose} role="presentation">
+<div class="fixed inset-0 bg-black/40 flex justify-end z-[100]" onclick={onclose} role="presentation">
   <!-- svelte-ignore a11y_no_static_element_interactions a11y_interactive_supports_focus a11y_click_events_have_key_events -->
-  <div class="panel" onclick={(e) => e.stopPropagation()} onpaste={handlePaste} ondrop={handleDrop} ondragover={handleDragOver} role="dialog" aria-label="Task detail" tabindex="-1">
-    <div class="panel-header">
-      <span class="task-id">#{task.id}</span>
-      <button class="close-btn" onclick={onclose}>X</button>
+  <div class="bg-surface w-full md:w-[min(70vw,1200px)] h-full overflow-y-auto p-6 md:p-6 shadow-[-4px_0_24px_rgba(0,0,0,0.15)]" onclick={(e) => e.stopPropagation()} onpaste={handlePaste} ondrop={handleDrop} ondragover={handleDragOver} role="dialog" aria-label="Task detail" tabindex="-1">
+    <div class="flex justify-between items-center mb-5 md:mb-5">
+      <span class="text-lg font-bold text-text-secondary">#{task.id}</span>
+      <button class="bg-bg py-1.5 px-3 font-semibold text-text-secondary" onclick={onclose}>X</button>
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Title</label>
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Title</label>
       {#if editingField === 'title'}
         <input
           type="text"
           bind:value={editTitle}
           onblur={() => { editingField = null; markDirty(); }}
           onkeydown={(e) => { if (e.key === 'Enter') { editingField = null; markDirty(); } }}
+          class="w-full box-border"
         />
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="editable" onclick={() => editingField = 'title'}>{editTitle}</div>
+        <div class="editable py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative hover:border-primary" onclick={() => editingField = 'title'}>{editTitle}</div>
       {/if}
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Status</label>
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Status</label>
       <select bind:value={editStatus} onchange={markDirty}>
         {#each STATUSES as s}
           <option value={s}>{s.replace(/_/g, ' ')}</option>
         {/each}
       </select>
-      <span class="status-dot" style="background: {statusColor(editStatus)}"></span>
+      <span class="inline-block w-2.5 h-2.5 rounded-full ml-2 align-middle" style="background: {statusColor(editStatus)}"></span>
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Description</label>
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Description</label>
       {#if editingField === 'description'}
-        <div class="desc-box">
+        <div class="border border-border rounded-[--radius] overflow-hidden focus-within:border-primary">
           <textarea
             bind:value={editDescription}
             onblur={() => { editingField = null; markDirty(); }}
             rows="4"
+            class="border-none rounded-none w-full focus:outline-none focus:shadow-none"
           ></textarea>
-          <div class="desc-box-toolbar">
-            <label class="attach-btn-inline">
+          <div class="flex items-center py-1 px-2 border-t border-border bg-bg">
+            <label class="cursor-pointer text-text-secondary text-[13px] py-1 px-2 border border-dashed border-border rounded-[--radius] hover:text-primary hover:border-primary">
               <input type="file" multiple onchange={handleFileInput} style="display:none" />
               Attach files
             </label>
@@ -279,7 +279,7 @@
         </div>
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="editable desc" onclick={() => editingField = 'description'}>
+        <div class="editable py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative min-h-10 text-text prose prose-sm max-w-none hover:border-primary" onclick={() => editingField = 'description'}>
           {#if editDescription}
             {@html marked.parse(editDescription)}
           {:else}
@@ -289,22 +289,22 @@
       {/if}
     </div>
 
-    <div class="row">
-      <div class="field half">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-4">
+      <div class="mb-4 flex-1">
         <!-- svelte-ignore a11y_label_has_associated_control -->
-        <label>Importance: {editImportance}</label>
-        <input type="range" min="0" max="100" bind:value={editImportance} onchange={markDirty} />
+        <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Importance: {editImportance}</label>
+        <input type="range" min="0" max="100" bind:value={editImportance} onchange={markDirty} class="border-none p-0 w-full" />
       </div>
-      <div class="field half">
+      <div class="mb-4 flex-1">
         <!-- svelte-ignore a11y_label_has_associated_control -->
-        <label>Effort</label>
-        <input type="number" min="0" step="0.5" bind:value={editEffort} onchange={markDirty} />
+        <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Effort</label>
+        <input type="number" min="0" step="0.5" bind:value={editEffort} onchange={markDirty} class="w-full box-border" />
       </div>
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Assignee</label>
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Assignee</label>
       <select bind:value={editAssigneeId} onchange={markDirty}>
         <option value={null}>Unassigned</option>
         {#each users as user (user.id)}
@@ -313,14 +313,14 @@
       </select>
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Tags</label>
-      <div class="chips">
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Tags</label>
+      <div class="flex flex-wrap gap-1.5 items-center">
         {#each editTags as tag}
-          <span class="chip">
+          <span class="bg-bg py-1 px-2.5 rounded-xl text-[13px] flex items-center gap-1">
             {tag}
-            <button type="button" class="chip-remove" onclick={() => removeTag(tag)}>x</button>
+            <button type="button" class="bg-none p-0 px-0.5 text-xs text-text-secondary" onclick={() => removeTag(tag)}>x</button>
           </span>
         {/each}
         <input
@@ -328,19 +328,19 @@
           bind:value={newTag}
           placeholder="Add tag..."
           onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-          class="chip-input"
+          class="w-[100px] border border-dashed border-border text-[13px] py-1 px-2"
         />
       </div>
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Blocked By</label>
-      <div class="chips">
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Blocked By</label>
+      <div class="flex flex-wrap gap-1.5 items-center">
         {#each editBlockers as id}
-          <span class="chip">
+          <span class="bg-bg py-1 px-2.5 rounded-xl text-[13px] flex items-center gap-1">
             #{id}
-            <button type="button" class="chip-remove" onclick={() => removeBlocker(id)}>x</button>
+            <button type="button" class="bg-none p-0 px-0.5 text-xs text-text-secondary" onclick={() => removeBlocker(id)}>x</button>
           </span>
         {/each}
         <input
@@ -348,32 +348,32 @@
           bind:value={newBlocker}
           placeholder="Task ID..."
           onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addBlocker(); } }}
-          class="chip-input"
+          class="w-[100px] border border-dashed border-border text-[13px] py-1 px-2"
         />
       </div>
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Created</label>
-      <div class="meta">{formatTime(task.created_time)}</div>
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Created</label>
+      <div class="text-sm text-text-secondary">{formatTime(task.created_time)}</div>
     </div>
 
-    <div class="field">
+    <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
-      <label>Parent Task {#if parentTask}<span class="parent-hint">#{parentTask.id} — {parentTask.title}</span>{/if}</label>
-      <input type="text" bind:value={editParentId} onchange={markDirty} placeholder="Task ID (empty to clear)" />
+      <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Parent Task {#if parentTask}<span class="font-normal text-[11px] text-text-secondary normal-case tracking-normal">#{parentTask.id} -- {parentTask.title}</span>{/if}</label>
+      <input type="text" bind:value={editParentId} onchange={markDirty} placeholder="Task ID (empty to clear)" class="w-full box-border" />
     </div>
 
     {#if subtasks.length > 0}
-      <div class="field">
+      <div class="mb-4">
         <!-- svelte-ignore a11y_label_has_associated_control -->
-        <label>Subtasks ({subtasks.length})</label>
-        <div class="subtask-list">
+        <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Subtasks ({subtasks.length})</label>
+        <div class="flex flex-col gap-1">
           {#each subtasks as st (st.id)}
-            <div class="subtask-item">
-              <span class="status-dot" style="background: {statusColor(st.status)}"></span>
-              #{st.id} — {st.title}
+            <div class="flex items-center gap-2 text-sm py-1 text-text-secondary">
+              <span class="inline-block w-2.5 h-2.5 rounded-full" style="background: {statusColor(st.status)}"></span>
+              #{st.id} -- {st.title}
             </div>
           {/each}
         </div>
@@ -381,25 +381,25 @@
     {/if}
 
     {#if attachments.length > 0}
-      <div class="field">
+      <div class="mb-4">
         <!-- svelte-ignore a11y_label_has_associated_control -->
-        <label>Attachments</label>
-        <div class="attachments">
+        <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Attachments</label>
+        <div class="flex flex-col gap-2">
           {#each attachments as att (att.id)}
-            <div class="attachment-item">
+            <div class="flex flex-col gap-1 p-2 bg-bg rounded-[--radius]">
               {#if att.content_type.startsWith('image/')}
                 <a href={getFileUrl(att.id)} target="_blank" rel="noopener">
-                  <img src={getFileUrl(att.id)} alt={att.original_name} class="attachment-thumb" />
+                  <img src={getFileUrl(att.id)} alt={att.original_name} class="max-w-[300px] max-h-[200px] rounded-[--radius] object-contain cursor-pointer" />
                 </a>
               {:else}
-                <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="attachment-file">
+                <a href={getFileUrl(att.id)} target="_blank" rel="noopener" class="text-primary no-underline text-sm hover:underline">
                   {att.original_name}
                 </a>
               {/if}
-              <div class="attachment-info">
-                <span class="attachment-name">{att.original_name}</span>
-                <span class="attachment-size">{formatSize(att.size)}</span>
-                <button type="button" class="attachment-delete" onclick={() => handleDeleteAttachment(att.id)}>x</button>
+              <div class="flex items-center gap-2 text-xs text-text-secondary">
+                <span class="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{att.original_name}</span>
+                <span class="whitespace-nowrap">{formatSize(att.size)}</span>
+                <button type="button" class="bg-none py-0.5 px-1.5 text-xs text-text-secondary cursor-pointer hover:text-[color:var(--importance-high)]" onclick={() => handleDeleteAttachment(att.id)}>x</button>
               </div>
             </div>
           {/each}
@@ -408,12 +408,14 @@
     {/if}
 
     {#if saveError}
-      <div class="save-error">{saveError}</div>
+      <div class="save-error border border-[color:var(--importance-high)] rounded-[--radius] text-[color:var(--importance-high)] py-2 px-3 text-[13px] mb-2">
+        {saveError}
+      </div>
     {/if}
 
     {#if dirty}
-      <div class="save-bar">
-        <button class="save-btn" onclick={save} disabled={saving}>
+      <div class="sticky bottom-0 py-3 bg-surface border-t border-border text-right">
+        <button class="bg-primary text-white py-2.5 px-6 font-semibold hover:bg-primary-hover disabled:opacity-50 disabled:cursor-default" onclick={save} disabled={saving}>
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
@@ -424,59 +426,6 @@
 </div>
 
 <style>
-  .overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    justify-content: flex-end;
-    z-index: 100;
-  }
-  .panel {
-    background: var(--color-surface);
-    width: min(70vw, 1200px);
-    height: 100%;
-    overflow-y: auto;
-    padding: 24px;
-    box-shadow: -4px 0 24px rgba(0,0,0,0.15);
-  }
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  .task-id {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--color-text-secondary);
-  }
-  .close-btn {
-    background: var(--color-bg);
-    padding: 6px 12px;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-  .field {
-    margin-bottom: 16px;
-  }
-  .field label {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--color-text-secondary);
-    margin-bottom: 4px;
-    display: block;
-  }
-  .editable {
-    padding: 8px 12px;
-    border: 1px dashed var(--color-border);
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-size: 15px;
-    transition: border-color 0.1s;
-    position: relative;
-  }
   .editable::after {
     content: '\270E';
     position: absolute;
@@ -487,261 +436,10 @@
     opacity: 0.4;
     transition: opacity 0.15s;
   }
-  .editable:hover {
-    border-color: var(--color-primary);
-  }
   .editable:hover::after {
     opacity: 0.8;
   }
-  .field input[type="text"],
-  .field textarea {
-    width: 100%;
-    box-sizing: border-box;
-  }
-  .desc-box {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .desc-box:focus-within {
-    border-color: var(--color-primary);
-  }
-  .desc-box textarea {
-    border: none;
-    border-radius: 0;
-    width: 100%;
-  }
-  .desc-box textarea:focus {
-    outline: none;
-    box-shadow: none;
-  }
-  .desc-box-toolbar {
-    display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-bg);
-  }
-  .attach-btn-inline {
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    font-size: 13px;
-    padding: 4px 8px;
-    border: 1px dashed var(--color-border);
-    border-radius: var(--radius);
-  }
-  .attach-btn-inline:hover {
-    color: var(--color-primary);
-    border-color: var(--color-primary);
-  }
-  .desc {
-    min-height: 40px;
-    color: var(--color-text);
-  }
-  .desc :global(p) {
-    margin: 0 0 8px;
-  }
-  .desc :global(p:last-child) {
-    margin-bottom: 0;
-  }
-  .desc :global(code) {
-    background: var(--color-bg);
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 13px;
-  }
-  .desc :global(pre) {
-    background: var(--color-bg);
-    padding: 8px 12px;
-    border-radius: var(--radius);
-    overflow-x: auto;
-    font-size: 13px;
-  }
-  .desc :global(pre code) {
-    background: none;
-    padding: 0;
-  }
-  .row {
-    display: flex;
-    gap: 16px;
-  }
-  .half {
-    flex: 1;
-  }
-  input[type="range"] {
-    border: none;
-    padding: 0;
-    width: 100%;
-  }
-  .status-dot {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-left: 8px;
-    vertical-align: middle;
-  }
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-  }
-  .chip {
-    background: var(--color-bg);
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .chip-remove {
-    background: none;
-    padding: 0 2px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
-  .chip-input {
-    width: 100px;
-    border: 1px dashed var(--color-border);
-    font-size: 13px;
-    padding: 4px 8px;
-  }
-  .meta {
-    font-size: 14px;
-    color: var(--color-text-secondary);
-  }
-  .parent-hint {
-    font-weight: 400;
-    font-size: 11px;
-    color: var(--color-text-secondary);
-    text-transform: none;
-    letter-spacing: normal;
-  }
-  .subtask-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .subtask-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    padding: 4px 0;
-    color: var(--color-text-secondary);
-  }
   .save-error {
     background: color-mix(in srgb, var(--importance-high) 10%, var(--color-surface));
-    border: 1px solid var(--importance-high);
-    border-radius: var(--radius);
-    color: var(--importance-high);
-    padding: 8px 12px;
-    font-size: 13px;
-    margin-bottom: 8px;
-  }
-  .save-bar {
-    position: sticky;
-    bottom: 0;
-    padding: 12px 0;
-    background: var(--color-surface);
-    border-top: 1px solid var(--color-border);
-    text-align: right;
-  }
-  .save-btn {
-    background: var(--color-primary);
-    color: white;
-    padding: 10px 24px;
-    font-weight: 600;
-  }
-  .save-btn:hover:not(:disabled) {
-    background: var(--color-primary-hover);
-  }
-  .save-btn:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-  .attachments {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .attachment-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 8px;
-    background: var(--color-bg);
-    border-radius: var(--radius);
-  }
-  .attachment-thumb {
-    max-width: 300px;
-    max-height: 200px;
-    border-radius: var(--radius);
-    object-fit: contain;
-    cursor: pointer;
-  }
-  .attachment-file {
-    color: var(--color-primary);
-    text-decoration: none;
-    font-size: 14px;
-  }
-  .attachment-file:hover {
-    text-decoration: underline;
-  }
-  .attachment-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
-  .attachment-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .attachment-size {
-    white-space: nowrap;
-  }
-  .attachment-delete {
-    background: none;
-    padding: 2px 6px;
-    font-size: 12px;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-  }
-  .attachment-delete:hover {
-    color: var(--importance-high, red);
-  }
-  .upload-area {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    border: 2px dashed var(--color-border);
-    border-radius: var(--radius);
-    color: var(--color-text-secondary);
-    font-size: 13px;
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .upload-area:hover {
-    border-color: var(--color-primary);
-  }
-  @media (max-width: 768px) {
-    .panel {
-      width: 100%;
-      max-width: none;
-    }
-    .panel-header {
-      margin-bottom: 12px;
-    }
-    .row {
-      flex-direction: column;
-      gap: 0;
-    }
   }
 </style>
