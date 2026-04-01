@@ -32,8 +32,8 @@
   --importance-medium: #eab308;
   --importance-low: #6b7280;
 
-  --tooltip-bg: #1a1a2e;
-  --tooltip-text: #f5f7fa;
+  --tooltip-bg: #374151;
+  --tooltip-text: #f9fafb;
 }
 
 [data-theme="dark"] {
@@ -59,8 +59,8 @@
   --importance-medium: #fbbf24;
   --importance-low: #9ca3af;
 
-  --tooltip-bg: #e4e6eb;
-  --tooltip-text: #0f1117;
+  --tooltip-bg: #d1d5db;
+  --tooltip-text: #111827;
 }
 
 /* Base styles */
