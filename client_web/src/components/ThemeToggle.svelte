@@ -40,7 +40,7 @@
 <div class="flex border border-border rounded-md overflow-hidden">
   {#each OPTIONS as opt, i}
     <button
-      class="bg-transparent text-text-secondary border-none px-2 py-1 text-sm cursor-pointer flex items-center leading-none hover:text-text hover:bg-bg {theme === opt.value ? 'bg-primary !text-white' : ''} {i > 0 ? 'border-l border-border' : ''}"
+      class="border-none px-2 py-1 text-sm cursor-pointer flex items-center leading-none rounded-none {theme === opt.value ? '!bg-primary !text-white' : 'bg-transparent text-text-secondary hover:text-text hover:bg-bg'} {i > 0 ? 'border-l border-border' : ''}"
       onclick={() => setTheme(opt.value)}
       title={opt.label}
     >

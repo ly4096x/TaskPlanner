@@ -100,7 +100,7 @@
 
 <div class="bar flex gap-2 items-center py-2 mb-3 flex-wrap">
   {#if filterOpen}
-    <div class="flex items-center gap-1.5 px-3 py-1 bg-surface border-[1.5px] border-primary rounded-2xl flex-1 min-w-[150px] md:min-w-[200px]">
+    <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-surface border-[1.5px] border-primary rounded-2xl min-w-[150px] md:min-w-[200px] max-w-[500px]">
       <span class="text-sm leading-none">&#9783;</span>
       <!-- svelte-ignore a11y_autofocus -->
       <input
@@ -108,7 +108,7 @@
         bind:value={filterValue}
         onkeydown={handleFilterKey}
         onblur={applyFilter}
-        placeholder="STATUS=NEW AND IMPORTANCE>=50 | CREATED_TIME>=-3600 (last hour)"
+        placeholder="STATUS=NEW, IMPORTANCE>=50"
         title="Fields: STATUS, TITLE, IMPORTANCE, TAGS, ASSIGNEE, CREATED_TIME. Ops: = != > < >= <= ~=. Logic: AND OR NOT (). Time: relative with +/- seconds"
         autofocus
         class="flex-1 border-none outline-none bg-transparent text-[13px] text-text font-mono py-0.5"
@@ -125,7 +125,7 @@
   {/if}
 
   {#if sortOpen}
-    <div class="flex items-center gap-1.5 px-3 py-1 bg-surface border-[1.5px] border-primary rounded-2xl flex-1 min-w-[150px] md:min-w-[200px]">
+    <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-surface border-[1.5px] border-primary rounded-2xl min-w-[150px] md:min-w-[200px] max-w-[500px]">
       <span class="text-sm leading-none">&#8597;</span>
       <!-- svelte-ignore a11y_autofocus -->
       <input
@@ -133,7 +133,7 @@
         bind:value={sortValue}
         onkeydown={handleSortKey}
         onblur={applySort}
-        placeholder="IMPORTANCE desc, CREATED asc | Click column headers to sort"
+        placeholder="IMPORTANCE desc, CREATED asc"
         title="Fields: id, title, status, importance, effort, created, assignee. Dir: asc, desc"
         autofocus
         class="flex-1 border-none outline-none bg-transparent text-[13px] text-text font-mono py-0.5"

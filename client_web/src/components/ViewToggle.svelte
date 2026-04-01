@@ -9,7 +9,7 @@
 
 <div class="flex gap-1 bg-border rounded-[--radius] p-0.5">
   <button
-    class="bg-transparent text-text-secondary py-1.5 px-2.5 flex items-center {view === 'list' ? 'bg-surface text-primary shadow-[--shadow]' : ''}"
+    class="py-1.5 px-2.5 flex items-center {view === 'list' ? '!bg-surface !text-primary shadow-[--shadow]' : 'bg-transparent text-text-secondary'}"
     onclick={() => onchange('list')}
     aria-label="List view"
   >
@@ -20,7 +20,7 @@
     </svg>
   </button>
   <button
-    class="bg-transparent text-text-secondary py-1.5 px-2.5 flex items-center {view === 'card' ? 'bg-surface text-primary shadow-[--shadow]' : ''}"
+    class="py-1.5 px-2.5 flex items-center {view === 'card' ? '!bg-surface !text-primary shadow-[--shadow]' : 'bg-transparent text-text-secondary'}"
     onclick={() => onchange('card')}
     aria-label="Card view"
   >
