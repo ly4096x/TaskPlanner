@@ -2,12 +2,23 @@ import { mount } from 'svelte';
 import './app.css';
 import App from './App.svelte';
 
-// Convert title attributes to data-tooltip for instant CSS tooltips
+// Instant tooltips — suppress native title delay, show a positioned div instead
+const tip = document.createElement('div');
+tip.id = 'tooltip';
+document.body.appendChild(tip);
+
 document.addEventListener('mouseenter', (e) => {
   const el = e.target as HTMLElement;
   if (el.title) {
     el.dataset.tooltip = el.title;
     el.title = '';
+  }
+  if (el.dataset.tooltip) {
+    tip.textContent = el.dataset.tooltip;
+    const rect = el.getBoundingClientRect();
+    tip.style.left = `${rect.left + rect.width / 2 - tip.offsetWidth / 2}px`;
+    tip.style.top = `${rect.top - tip.offsetHeight - 4}px`;
+    tip.classList.add('visible');
   }
 }, true);
 document.addEventListener('mouseleave', (e) => {
@@ -15,6 +26,7 @@ document.addEventListener('mouseleave', (e) => {
   if (el.dataset.tooltip) {
     el.title = el.dataset.tooltip;
     delete el.dataset.tooltip;
+    tip.classList.remove('visible');
   }
 }, true);
 
