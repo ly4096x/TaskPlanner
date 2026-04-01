@@ -15,8 +15,10 @@
   let { tasks, onselect, onstatuschange, groupByStatus = true, visibleStatuses, statusOrder }: Props = $props();
 
   let dragOverStatus = $state<string | null>(null);
+  let draggingTask = $state<Task | null>(null);
 
   function handleDragStart(e: DragEvent, task: Task) {
+    draggingTask = task;
     e.dataTransfer!.effectAllowed = 'move';
     e.dataTransfer!.setData('text/plain', String(task.id));
   }
@@ -34,11 +36,16 @@
     }
   }
 
+  function handleDragEnd() {
+    draggingTask = null;
+    dragOverStatus = null;
+  }
+
   function handleDrop(e: DragEvent, targetStatus: string) {
     e.preventDefault();
     dragOverStatus = null;
-    const taskId = parseInt(e.dataTransfer!.getData('text/plain'));
-    const task = tasks.find(t => t.id === taskId);
+    const task = draggingTask;
+    draggingTask = null;
     if (task && task.status !== targetStatus && onstatuschange) {
       onstatuschange(task, targetStatus);
     }
@@ -86,6 +93,7 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="w-full md:flex-1 md:min-w-60 md:max-w-80 rounded-lg px-2 pt-0.5 pb-1.5 transition-[outline] duration-150 {dragOverStatus === group.status ? 'outline-2 outline-dashed outline-primary' : ''}"
+        data-status={group.status}
         style="background: color-mix(in srgb, var(--status-{statusCssVar(group.status)}) 8%, var(--color-bg))"
         ondragover={(e) => handleDragOver(e, group.status)}
         ondragleave={(e) => handleDragLeave(e, group.status)}
@@ -98,7 +106,7 @@
         </h3>
         <div class="flex flex-col gap-2 min-h-5">
           {#each group.tasks as task (task.id)}
-            <div draggable={onstatuschange ? 'true' : 'false'} ondragstart={(e) => handleDragStart(e, task)} class="{onstatuschange ? 'cursor-grab' : ''}">
+            <div draggable={onstatuschange ? 'true' : 'false'} ondragstart={(e) => handleDragStart(e, task)} ondragend={handleDragEnd} class="{onstatuschange ? 'cursor-grab' : ''}">
               <TaskCard {task} onclick={onselect} minimal />
             </div>
           {/each}

@@ -267,14 +267,12 @@
   }
 
   async function handleKanbanStatusChange(task: Task, newStatus: string) {
-    // Optimistic update
     const oldStatus = task.status;
     tasks = tasks.map(t => t.id === task.id ? { ...t, status: newStatus as Task['status'] } : t);
     try {
-      const updated = await editTask(selectedBoard!.id, task.id, { status: newStatus as Task['status'] }, currentUsername);
+      const updated = await editTask(selectedBoard!.id, task.id, { status: newStatus as Task['status'] }, currentUser?.username);
       tasks = tasks.map(t => t.id === updated.id ? updated : t);
     } catch (e) {
-      // Revert on failure
       tasks = tasks.map(t => t.id === task.id ? { ...t, status: oldStatus } : t);
     }
   }

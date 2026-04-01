@@ -43,4 +43,57 @@ document.addEventListener('mouseleave', (e) => {
 
 const app = mount(App, { target: document.getElementById('app')! });
 
+// Auto drag-drop test: activate with ?test_drag in URL
+const _testDrag = new URLSearchParams(window.location.search).has('test_drag');
+if (_testDrag) {
+  setTimeout(() => {
+    function simulateDrag(source: HTMLElement, target: HTMLElement) {
+      const sourceRect = source.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+
+      const dataTransfer = new DataTransfer();
+
+      source.dispatchEvent(new DragEvent('dragstart', {
+        bubbles: true, cancelable: true, dataTransfer,
+        clientX: sourceRect.left + sourceRect.width / 2,
+        clientY: sourceRect.top + sourceRect.height / 2,
+      }));
+
+      target.dispatchEvent(new DragEvent('dragover', {
+        bubbles: true, cancelable: true, dataTransfer,
+        clientX: targetRect.left + targetRect.width / 2,
+        clientY: targetRect.top + targetRect.height / 2,
+      }));
+
+      target.dispatchEvent(new DragEvent('drop', {
+        bubbles: true, cancelable: true, dataTransfer,
+        clientX: targetRect.left + targetRect.width / 2,
+        clientY: targetRect.top + targetRect.height / 2,
+      }));
+
+      source.dispatchEvent(new DragEvent('dragend', {
+        bubbles: true, cancelable: true, dataTransfer,
+      }));
+    }
+
+    // Find first draggable card and the second column
+    const card = document.querySelector('[draggable="true"]') as HTMLElement | null;
+    const columns = document.querySelectorAll('[data-status]');
+    if (card && columns.length >= 2) {
+      const sourceStatus = card.closest('[data-status]')?.getAttribute('data-status');
+      // Find a different column to drop on
+      const targetCol = Array.from(columns).find(c => c.getAttribute('data-status') !== sourceStatus) as HTMLElement | null;
+      if (targetCol) {
+        console.log(`[test_drag] dragging from ${sourceStatus} to ${targetCol.dataset.status}`);
+        simulateDrag(card, targetCol);
+        console.log('[test_drag] done');
+      } else {
+        console.error('[test_drag] no target column found');
+      }
+    } else {
+      console.error('[test_drag] no draggable card or columns found. Ensure kanban view is active.');
+    }
+  }, 2000); // Wait for Svelte to render
+}
+
 export default app;
