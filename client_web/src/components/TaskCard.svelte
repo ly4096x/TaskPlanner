@@ -50,9 +50,7 @@
   style={minimal ? `background: color-mix(in srgb, var(--status-${statusCssVar(task.status)}) 8%, var(--color-surface))` : ''}>
   {#if minimal}
     <h3 class="text-sm font-normal mb-1 text-text leading-tight break-words">{task.title}</h3>
-    {#if task.assignee_name}
-      <div class="text-[11px] text-text-secondary opacity-50">{task.assignee_name}</div>
-    {/if}
+    <div class="text-[11px] text-text-secondary opacity-50">#{task.id}{#if task.assignee_name} {task.assignee_name}{/if}</div>
   {:else}
     <div class="flex justify-between items-center mb-1">
       <span class="badge text-[10px] font-semibold px-1.5 py-px rounded-[10px] uppercase leading-[14px] h-4 inline-flex items-center whitespace-nowrap" style="--badge-color: var(--status-{statusCssVar(task.status)})">{statusLabel(task.status)}</span>
