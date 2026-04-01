@@ -93,6 +93,29 @@
     color: var(--color-text);
   }
 
+  /* Instant tooltips via data-tooltip attr (native title suppressed by JS) */
+  [data-tooltip] {
+    position: relative;
+  }
+  [data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: var(--color-text);
+    color: var(--color-bg);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+    white-space: nowrap;
+    border-radius: 4px;
+    z-index: 9999;
+    pointer-events: none;
+    margin-bottom: 4px;
+  }
+
   input:focus, textarea:focus, select:focus {
     border-color: var(--color-primary);
   }
