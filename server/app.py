@@ -9,7 +9,8 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from server import crud, models
 from server.db import get_connection, init_db
@@ -545,3 +546,19 @@ def delete_file(
 
     crud.delete_attachment(conn, attachment_id)
     return {"ok": True}
+
+
+# --- Static web client ---
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+if STATIC_DIR.is_dir():
+    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    def spa_fallback(full_path: str):  # noqa: ARG001
+        """Serve index.html for all non-API routes (SPA client-side routing)."""
+        index = STATIC_DIR / "index.html"
+        if index.exists():
+            return HTMLResponse(index.read_text())
+        raise HTTPException(status_code=404, detail="Web client not found")

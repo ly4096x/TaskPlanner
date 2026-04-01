@@ -23,6 +23,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["server", "client_cli"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"client_web/dist" = "server/static"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
