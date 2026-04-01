@@ -79,7 +79,7 @@
     </svg>
   </button>
 
-  <div class="sidebar-inner bg-surface border-r border-border flex flex-col overflow-hidden relative {resizing ? '' : 'transition-[width] duration-200'}" style="width: {sidebarWidth}px">
+  <div class="sidebar-inner bg-surface flex flex-col overflow-hidden relative {collapsed ? '' : 'border-r border-border'} {resizing ? '' : 'transition-[width] duration-200'}" style="width: {collapsed ? 0 : sidebarWidth}px">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="resize-handle absolute top-0 right-0 w-1 h-full cursor-col-resize z-10 hover:bg-primary/30 {resizing ? 'bg-primary/30' : ''}" onmousedown={startResize}></div>
     <div class="px-3 pt-4 pb-3 border-b border-border flex items-center justify-between">
@@ -174,10 +174,6 @@
 <style>
   .board-row:hover .archive-btn {
     opacity: 1;
-  }
-  .sidebar.collapsed .sidebar-inner {
-    width: 0;
-    border-right: none;
   }
   @media (max-width: 768px) {
     .sidebar-backdrop {
