@@ -120,7 +120,7 @@
         {#each sortedComments as comment (comment.id)}
           <div class="bg-bg rounded-[--radius] py-2.5 px-3.5 {comment.comment_type === 'METADATA_CHANGE' ? 'metadata-comment' : ''} {comment.comment_type === 'EXECUTION_LOG' ? 'log-comment' : ''} {comment.comment_type === 'TEXT' ? 'text-comment' : ''}">
             <div class="text-xs text-text-secondary mb-1 {comment.comment_type !== 'TEXT' ? 'text-[11px] mb-0.5' : ''}">{#if comment.commenter_name}<span class="font-semibold text-text">{comment.commenter_name}</span> &middot; {/if}{formatTime(comment.created_time)}</div>
-            <div class="prose prose-sm max-w-none {comment.comment_type === 'METADATA_CHANGE' ? 'text-xs text-text-secondary' : ''} {comment.comment_type === 'EXECUTION_LOG' ? 'text-[13px] text-text-secondary' : ''}">
+            <div class="prose prose-sm max-w-none {comment.comment_type === 'METADATA_CHANGE' ? 'text-xs text-text-secondary' : ''} {comment.comment_type === 'EXECUTION_LOG' ? 'text-[13px] text-text-secondary' : ''} {comment.comment_type === 'TEXT' ? '!text-text' : ''}">
               {@html marked.parse(comment.content)}
             </div>
             {#if commentAttachments[comment.id]?.length}
