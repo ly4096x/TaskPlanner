@@ -38,6 +38,7 @@ class BoardCreate(BaseModel):
 class BoardUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    archived: bool | None = None
 
 
 class BoardResponse(BaseModel):
@@ -45,6 +46,7 @@ class BoardResponse(BaseModel):
     name: str
     description: str
     created_time: float
+    archived: bool = False
 
 
 # --- Tag models ---

@@ -95,6 +95,7 @@ def create_board(conn: sqlite3.Connection, name: str, description: str = "") -> 
         "name": name,
         "description": description,
         "created_time": created_time,
+        "archived": False,
     }
 
 
@@ -103,12 +104,15 @@ def get_board(conn: sqlite3.Connection, board_id: int) -> dict | None:
     return _row_to_dict(row)
 
 
-def list_boards(conn: sqlite3.Connection) -> list[dict]:
-    rows = conn.execute("SELECT * FROM boards ORDER BY id").fetchall()
+def list_boards(conn: sqlite3.Connection, include_archived: bool = False) -> list[dict]:
+    if include_archived:
+        rows = conn.execute("SELECT * FROM boards ORDER BY id").fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM boards WHERE archived = 0 ORDER BY id").fetchall()
     return [dict(r) for r in rows]
 
 
-_BOARD_UPDATE_WHITELIST = {"name", "description"}
+_BOARD_UPDATE_WHITELIST = {"name", "description", "archived"}
 
 
 def update_board(conn: sqlite3.Connection, board_id: int, **fields) -> dict | None:

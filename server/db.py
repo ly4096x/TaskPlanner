@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 # Current schema version
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 _BASE_SCHEMA = """\
 PRAGMA journal_mode=WAL;
@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS boards (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    created_time REAL NOT NULL
+    created_time REAL NOT NULL,
+    archived INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS tags (
@@ -175,9 +176,20 @@ def _migrate_to_v13(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
+def _migrate_to_v14(conn: sqlite3.Connection) -> None:
+    """Add archived column to boards table."""
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(boards)").fetchall()}
+    if "archived" not in cols:
+        conn.execute(
+            "ALTER TABLE boards ADD COLUMN archived INTEGER NOT NULL DEFAULT 0"
+        )
+        conn.commit()
+
+
 _MIGRATIONS = {
     12: _migrate_to_v12,
     13: _migrate_to_v13,
+    14: _migrate_to_v14,
 }
 
 

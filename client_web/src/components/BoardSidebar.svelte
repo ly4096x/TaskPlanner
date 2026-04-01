@@ -1,17 +1,20 @@
 <script lang="ts">
-  import { createBoard, type Board } from '../lib/api';
+  import { createBoard, editBoard, type Board } from '../lib/api';
 
   interface Props {
     boards: Board[];
     selected: Board | null;
     collapsed: boolean;
+    showArchived: boolean;
     onselect: (board: Board) => void;
     onboardcreated: (board: Board) => void;
     ontoggle: () => void;
     onusers: () => void;
+    onarchive: (board: Board) => void;
+    ontogglearchived: () => void;
   }
 
-  let { boards, selected, collapsed, onselect, onboardcreated, ontoggle, onusers }: Props = $props();
+  let { boards, selected, collapsed, showArchived, onselect, onboardcreated, ontoggle, onusers, onarchive, ontogglearchived }: Props = $props();
 
   let creating = $state(false);
   let newName = $state('');
@@ -84,20 +87,51 @@
   {/if}
 
   <nav class="board-list">
-    {#each boards as board (board.id)}
-      <button
-        class="board-item"
-        class:active={selected?.id === board.id}
-        onclick={() => selectBoard(board)}
-        title={board.description || board.name}
-      >
-        <span class="board-icon">■</span>
-        <span class="board-name">{board.name}</span>
-      </button>
+    {#each boards.filter(b => !b.archived) as board (board.id)}
+      <div class="board-row" class:active={selected?.id === board.id}>
+        <button
+          class="board-item"
+          class:active={selected?.id === board.id}
+          onclick={() => selectBoard(board)}
+          title={board.description || board.name}
+        >
+          <span class="board-icon">■</span>
+          <span class="board-name">{board.name}</span>
+        </button>
+        <button
+          class="archive-btn"
+          onclick={() => onarchive(board)}
+          title="Archive board"
+        >✕</button>
+      </div>
     {/each}
+
+    {#if showArchived}
+      {#each boards.filter(b => b.archived) as board (board.id)}
+        <div class="board-row archived" class:active={selected?.id === board.id}>
+          <button
+            class="board-item"
+            class:active={selected?.id === board.id}
+            onclick={() => selectBoard(board)}
+            title={board.description || board.name}
+          >
+            <span class="board-icon archived-icon">■</span>
+            <span class="board-name">{board.name}</span>
+          </button>
+          <button
+            class="archive-btn"
+            onclick={() => onarchive(board)}
+            title="Unarchive board"
+          >↩</button>
+        </div>
+      {/each}
+    {/if}
   </nav>
 
   <div class="sidebar-footer">
+    <button class="footer-btn" onclick={ontogglearchived}>
+      {showArchived ? 'Hide archived' : 'Archived boards'}
+    </button>
     <button class="footer-btn" onclick={onusers}>Users</button>
   </div>
   </div>
@@ -188,13 +222,27 @@
     overflow-y: auto;
     padding: 8px 0;
   }
+  .board-row {
+    display: flex;
+    align-items: center;
+  }
+  .board-row:hover .archive-btn {
+    opacity: 1;
+  }
+  .board-row.active {
+    border-left: 3px solid var(--color-primary);
+  }
+  .board-row.archived {
+    opacity: 0.6;
+  }
   .board-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     text-align: left;
-    padding: 8px 12px;
+    padding: 8px 4px 8px 12px;
     background: none;
     border: none;
     border-radius: 0;
@@ -203,14 +251,30 @@
     font-size: 14px;
     transition: background 0.1s;
   }
-  .board-item:hover {
+  .board-row:hover .board-item,
+  .board-row.active .board-item {
     background: var(--color-bg);
   }
-  .board-item.active {
-    background: var(--color-bg);
+  .board-row.active .board-item {
     font-weight: 600;
-    border-left: 3px solid var(--color-primary);
     padding-left: 9px;
+  }
+  .archive-btn {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.1s;
+    flex-shrink: 0;
+  }
+  .archive-btn:hover {
+    color: var(--color-text);
+  }
+  .archived-icon {
+    color: var(--color-text-secondary) !important;
   }
   .board-icon {
     color: var(--color-primary);

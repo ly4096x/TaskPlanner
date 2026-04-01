@@ -72,8 +72,11 @@ async def value_error_handler(request: Request, exc: ValueError):
 
 
 @app.get("/api/v1/boards", response_model=list[models.BoardResponse])
-def list_boards(conn: sqlite3.Connection = Depends(get_db)):
-    return crud.list_boards(conn)
+def list_boards(
+    include_archived: bool = Query(False),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    return crud.list_boards(conn, include_archived=include_archived)
 
 
 @app.post("/api/v1/boards/new", response_model=models.BoardResponse, status_code=201)

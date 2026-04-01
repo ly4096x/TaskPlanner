@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { listTasks, listBoards, subscribeToBoardEvents, type Task, type Board, type BoardEvent } from './lib/api';
+  import { listTasks, listBoards, editBoard, subscribeToBoardEvents, type Task, type Board, type BoardEvent } from './lib/api';
   import BoardSidebar from './components/BoardSidebar.svelte';
   import ViewToggle from './components/ViewToggle.svelte';
   import TaskList from './components/TaskList.svelte';
@@ -61,6 +61,7 @@
   let boardsLoading = $state(true);
   let sidebarCollapsed = $state(window.innerWidth <= 768);
   let showUsers = $state(false);
+  let showArchivedBoards = $state(false);
   let currentUser: User | null = $state(null);
 
   // Restore current user from localStorage
@@ -190,10 +191,10 @@
   async function loadBoards() {
     boardsLoading = true;
     try {
-      boards = await listBoards();
+      boards = await listBoards(showArchivedBoards);
       if (boards.length > 0 && !selectedBoard) {
         const fromUrl = urlBoardId != null ? boards.find(b => b.id === urlBoardId) : null;
-        selectedBoard = fromUrl ?? boards[0];
+        selectedBoard = fromUrl ?? boards.find(b => !b.archived) ?? boards[0];
         urlBoardId = null;
       }
     } catch (e) {
@@ -201,6 +202,20 @@
     } finally {
       boardsLoading = false;
     }
+  }
+
+  async function handleArchiveBoard(board: Board) {
+    const updated = await editBoard(board.id, { archived: !board.archived });
+    boards = boards.map(b => b.id === updated.id ? updated : b);
+    if (updated.archived && selectedBoard?.id === updated.id) {
+      selectedBoard = boards.find(b => !b.archived) ?? null;
+      loadTasks();
+    }
+  }
+
+  function toggleArchivedBoards() {
+    showArchivedBoards = !showArchivedBoards;
+    loadBoards();
   }
 
   async function loadTasks() {
@@ -357,10 +372,13 @@
     {boards}
     selected={selectedBoard}
     collapsed={sidebarCollapsed}
+    showArchived={showArchivedBoards}
     onselect={handleBoardSelect}
     onboardcreated={handleBoardCreated}
     ontoggle={() => sidebarCollapsed = !sidebarCollapsed}
     onusers={() => showUsers = true}
+    onarchive={handleArchiveBoard}
+    ontogglearchived={toggleArchivedBoards}
   />
 
   <div class="main">

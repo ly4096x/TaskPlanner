@@ -102,7 +102,7 @@ class TestSchema:
 
     def test_boards_table_columns(self, db):
         cols = {row[1] for row in db.execute("PRAGMA table_info(boards)").fetchall()}
-        assert cols == {"id", "name", "description", "created_time"}
+        assert cols == {"id", "name", "description", "created_time", "archived"}
 
     def test_tags_table_columns(self, db):
         cols = {row[1] for row in db.execute("PRAGMA table_info(tags)").fetchall()}

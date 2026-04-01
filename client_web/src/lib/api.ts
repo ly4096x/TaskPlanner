@@ -47,6 +47,7 @@ export interface Board {
   name: string;
   description: string;
   created_time: number;
+  archived: boolean;
 }
 
 export interface CreateTaskData {
@@ -99,12 +100,20 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 
 // --- Board API ---
 
-export async function listBoards(): Promise<Board[]> {
-  return request<Board[]>('/api/v1/boards');
+export async function listBoards(includeArchived = false): Promise<Board[]> {
+  const params = includeArchived ? '?include_archived=true' : '';
+  return request<Board[]>(`/api/v1/boards${params}`);
 }
 
 export async function createBoard(data: CreateBoardData): Promise<Board> {
   return request<Board>('/api/v1/boards/new', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function editBoard(boardId: number, data: { name?: string; description?: string; archived?: boolean }): Promise<Board> {
+  return request<Board>(`/api/v1/board/${boardId}/edit`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
