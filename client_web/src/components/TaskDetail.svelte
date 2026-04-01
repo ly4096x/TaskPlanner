@@ -244,7 +244,7 @@
         />
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="editable py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative hover:border-primary" onclick={() => editingField = 'title'}>{editTitle}</div>
+        <div class="py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative hover:border-primary after:content-['\270E'] after:absolute after:top-2 after:right-2 after:text-sm after:text-text-secondary after:opacity-40 after:transition-opacity after:duration-150 hover:after:opacity-80" onclick={() => editingField = 'title'}>{editTitle}</div>
       {/if}
     </div>
 
@@ -279,7 +279,7 @@
         </div>
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="editable py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative min-h-10 text-text prose prose-sm max-w-none hover:border-primary" onclick={() => editingField = 'description'}>
+        <div class="py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative min-h-10 text-text prose prose-sm max-w-none hover:border-primary after:content-['\270E'] after:absolute after:top-2 after:right-2 after:text-sm after:text-text-secondary after:opacity-40 after:transition-opacity after:duration-150 hover:after:opacity-80" onclick={() => editingField = 'description'}>
           {#if editDescription}
             {@html marked.parse(editDescription)}
           {:else}
@@ -426,19 +426,6 @@
 </div>
 
 <style>
-  .editable::after {
-    content: '\270E';
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    font-size: 14px;
-    color: var(--color-text-secondary);
-    opacity: 0.4;
-    transition: opacity 0.15s;
-  }
-  .editable:hover::after {
-    opacity: 0.8;
-  }
   .save-error {
     background: color-mix(in srgb, var(--importance-high) 10%, var(--color-surface));
   }
