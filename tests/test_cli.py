@@ -163,6 +163,11 @@ class TestShowBoard:
 class TestBoardFlagRequired:
     """Task commands must require --board / -b or .env TASKPLANNER_BOARD_ID."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_board_env(self, monkeypatch):
+        monkeypatch.delenv("TASKPLANNER_BOARD_ID", raising=False)
+        monkeypatch.delenv("TASKPLANNER_BOARD", raising=False)
+
     @patch("client_cli.cli._find_env_board_id", return_value=None)
     def test_list_requires_board(self, mock_env, runner):
         result = runner.invoke(cli, ["list"])
@@ -202,6 +207,11 @@ class TestBoardFlagRequired:
 
 class TestBoardFromEnvFile:
     """TASKPLANNER_BOARD_ID in .env file should provide the board ID."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_board_env(self, monkeypatch):
+        monkeypatch.delenv("TASKPLANNER_BOARD_ID", raising=False)
+        monkeypatch.delenv("TASKPLANNER_BOARD", raising=False)
 
     @patch("client_cli.cli._find_env_board_id", return_value=5)
     @patch("client_cli.cli.httpx.get")

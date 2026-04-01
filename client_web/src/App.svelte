@@ -215,6 +215,10 @@
     }
   }
 
+  function focusOnMount(node: HTMLElement) {
+    node.focus();
+  }
+
   function startEditBoardName() {
     if (!selectedBoard) return;
     editBoardNameValue = selectedBoard.name;
@@ -415,9 +419,10 @@
               bind:value={editBoardNameValue}
               onkeydown={(e) => { if (e.key === 'Enter') saveBoardName(); if (e.key === 'Escape') cancelEditBoardName(); }}
               onblur={saveBoardName}
-              autofocus
+              use:focusOnMount
             />
           {:else if selectedBoard}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <span class="board-name-text" ondblclick={startEditBoardName}>{selectedBoard.name}</span>
           {:else}
             TaskPlanner

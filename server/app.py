@@ -17,6 +17,7 @@ from server.db import get_connection, get_runtime_dir, init_db
 from server.events import event_bus
 from server.query_lang import parse_filter, to_sql_where
 
+
 def _get_upload_dir() -> Path:
     return get_runtime_dir() / "uploaded"
 
