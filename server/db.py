@@ -102,16 +102,17 @@ CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id);
 
 
 def get_runtime_dir() -> Path:
-    """Return the runtime data directory.
+    """Return the runtime data directory from TASKPLANNER_DATA_DIR env var.
 
-    Configurable via TASKPLANNER_DATA_DIR env var.
-    Defaults to server/runtime_data/ (next to this module).
+    Set by TaskPlannerServer's data_dir argument, or directly via the env var.
     """
     env = os.environ.get("TASKPLANNER_DATA_DIR")
-    if env:
-        d = Path(env).resolve()
-    else:
-        d = Path(__file__).resolve().parent / "runtime_data"
+    if not env:
+        raise RuntimeError(
+            "TASKPLANNER_DATA_DIR not set. "
+            "Use: TaskPlannerServer <data_dir>, or set TASKPLANNER_DATA_DIR."
+        )
+    d = Path(env).resolve()
     d.mkdir(parents=True, exist_ok=True)
     return d
 

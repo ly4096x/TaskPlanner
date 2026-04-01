@@ -17,12 +17,13 @@ from server.db import get_connection, get_runtime_dir, init_db
 from server.events import event_bus
 from server.query_lang import parse_filter, to_sql_where
 
-UPLOAD_DIR = get_runtime_dir() / "uploaded"
+def _get_upload_dir() -> Path:
+    return get_runtime_dir() / "uploaded"
 
 
 @asynccontextmanager
 async def lifespan(app):
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    _get_upload_dir().mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
         init_db(conn)
     yield
@@ -430,7 +431,7 @@ async def _handle_upload(
     safe_name = f"{uuid4()}_{_safe_filename(original_name)}"
     content_type = file.content_type or ""
 
-    file_path = UPLOAD_DIR / safe_name
+    file_path = _get_upload_dir() / safe_name
     content = await file.read()
     file_path.write_bytes(content)
     size = len(content)
@@ -519,7 +520,7 @@ def serve_file(
     if attachment is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
 
-    file_path = UPLOAD_DIR / attachment["filename"]
+    file_path = _get_upload_dir() / attachment["filename"]
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
 
@@ -540,7 +541,7 @@ def delete_file(
         raise HTTPException(status_code=404, detail="Attachment not found")
 
     # Delete file from disk
-    file_path = UPLOAD_DIR / attachment["filename"]
+    file_path = _get_upload_dir() / attachment["filename"]
     if file_path.exists():
         file_path.unlink()
 

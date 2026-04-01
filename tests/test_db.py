@@ -8,10 +8,10 @@ from server.db import get_connection, get_db_path, init_db
 
 
 class TestGetDbPath:
-    def test_returns_path_next_to_module(self):
-        path = get_db_path()
-        assert path.name == "taskplanner.db"
-        assert path.parent.name == "runtime_data"
+    def test_requires_env_var(self, monkeypatch):
+        monkeypatch.delenv("TASKPLANNER_DATA_DIR", raising=False)
+        with pytest.raises(RuntimeError, match="TASKPLANNER_DATA_DIR not set"):
+            get_db_path()
 
     def test_respects_env_var(self, tmp_path, monkeypatch):
         monkeypatch.setenv("TASKPLANNER_DATA_DIR", str(tmp_path))

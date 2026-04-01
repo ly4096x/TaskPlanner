@@ -6,6 +6,12 @@ from server import crud
 from server.db import get_connection, init_db
 
 
+@pytest.fixture(autouse=True)
+def _set_data_dir(tmp_path, monkeypatch):
+    """Set TASKPLANNER_DATA_DIR for all tests."""
+    monkeypatch.setenv("TASKPLANNER_DATA_DIR", str(tmp_path / "runtime_data"))
+
+
 @pytest.fixture
 def db():
     """Provide an in-memory database with schema initialized."""
