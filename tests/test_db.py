@@ -13,6 +13,11 @@ class TestGetDbPath:
         assert path.name == "taskplanner.db"
         assert path.parent.name == "runtime_data"
 
+    def test_respects_env_var(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("TASKPLANNER_DATA_DIR", str(tmp_path))
+        path = get_db_path()
+        assert path == tmp_path / "taskplanner.db"
+
 
 class TestGetConnection:
     def test_connection_has_row_factory(self):

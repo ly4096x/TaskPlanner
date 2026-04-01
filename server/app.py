@@ -13,11 +13,11 @@ from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from server import crud, models
-from server.db import get_connection, init_db
+from server.db import get_connection, get_runtime_dir, init_db
 from server.events import event_bus
 from server.query_lang import parse_filter, to_sql_where
 
-UPLOAD_DIR = Path(__file__).resolve().parent / "runtime_data" / "uploaded"
+UPLOAD_DIR = get_runtime_dir() / "uploaded"
 
 
 @asynccontextmanager

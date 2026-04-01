@@ -1,5 +1,6 @@
 """SQLite connection management, schema initialization, WAL mode."""
 
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -100,11 +101,24 @@ CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id);
 # ---------------------------------------------------------------------------
 
 
+def get_runtime_dir() -> Path:
+    """Return the runtime data directory.
+
+    Configurable via TASKPLANNER_DATA_DIR env var.
+    Defaults to server/runtime_data/ (next to this module).
+    """
+    env = os.environ.get("TASKPLANNER_DATA_DIR")
+    if env:
+        d = Path(env).resolve()
+    else:
+        d = Path(__file__).resolve().parent / "runtime_data"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def get_db_path() -> Path:
-    """Return path to the DB file, located next to this module."""
-    db_dir = Path(__file__).resolve().parent / "runtime_data"
-    db_dir.mkdir(parents=True, exist_ok=True)
-    return db_dir / "taskplanner.db"
+    """Return path to the DB file."""
+    return get_runtime_dir() / "taskplanner.db"
 
 
 @contextmanager
