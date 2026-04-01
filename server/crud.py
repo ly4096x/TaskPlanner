@@ -482,6 +482,13 @@ def _validate_status_transition(
             f"Cannot set status to {new_status} without an assignee. Assign the task first."
         )
 
+    # WAITING_FOR_COMMAND_EXECUTION can only be reached from STARTED
+    if new_status == "WAITING_FOR_COMMAND_EXECUTION" and current_task["status"] != "STARTED":
+        raise ValueError(
+            f"Cannot set status to WAITING_FOR_COMMAND_EXECUTION from {current_task['status']}. "
+            "Only STARTED tasks can be set to WAITING_FOR_COMMAND_EXECUTION."
+        )
+
     # DONE can only be reached from STARTED
     if new_status == "DONE" and current_task["status"] != "STARTED":
         raise ValueError(

@@ -23,6 +23,8 @@
     if (targetStatus !== 'NEW' && task.assignee_id == null) return false;
     // DONE only from STARTED
     if (targetStatus === 'DONE' && task.status !== 'STARTED') return false;
+    // WAITING_FOR_COMMAND_EXECUTION only from STARTED
+    if (targetStatus === 'WAITING_FOR_COMMAND_EXECUTION' && task.status !== 'STARTED') return false;
     // BLOCKED requires active blockers
     if (targetStatus === 'BLOCKED' && (!task.blockers || task.blockers.length === 0)) return false;
     // NOT_REPRODUCIBLE requires a reason (can't do via drag)

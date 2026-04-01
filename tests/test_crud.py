@@ -385,6 +385,36 @@ class TestSetTaskStatus:
         assert any("STATUS=+STARTED" in c["content"] for c in comments)
 
 
+class TestStatusTransitionRules:
+    def test_done_requires_started(self, populated_db):
+        boards = crud.list_boards(populated_db)
+        bid = boards[0]["id"]
+        # Task 1 is NEW with assignee — can't go directly to DONE
+        with pytest.raises(ValueError, match="Cannot set status to DONE"):
+            crud.edit_task_fields(populated_db, board_id=bid, task_id=1, status="DONE")
+
+    def test_waiting_requires_started(self, populated_db):
+        boards = crud.list_boards(populated_db)
+        bid = boards[0]["id"]
+        # Task 1 is NEW with assignee — can't go directly to WAITING
+        with pytest.raises(ValueError, match="Cannot set status to WAITING_FOR_COMMAND_EXECUTION"):
+            crud.edit_task_fields(populated_db, board_id=bid, task_id=1, status="WAITING_FOR_COMMAND_EXECUTION")
+
+    def test_waiting_from_started_ok(self, populated_db):
+        boards = crud.list_boards(populated_db)
+        bid = boards[0]["id"]
+        crud.edit_task_fields(populated_db, board_id=bid, task_id=1, status="STARTED")
+        task = crud.edit_task_fields(populated_db, board_id=bid, task_id=1, status="WAITING_FOR_COMMAND_EXECUTION")
+        assert task["status"] == "WAITING_FOR_COMMAND_EXECUTION"
+
+    def test_done_from_started_ok(self, populated_db):
+        boards = crud.list_boards(populated_db)
+        bid = boards[0]["id"]
+        crud.edit_task_fields(populated_db, board_id=bid, task_id=1, status="STARTED")
+        task = crud.edit_task_fields(populated_db, board_id=bid, task_id=1, status="DONE")
+        assert task["status"] == "DONE"
+
+
 class TestAssignTask:
     def test_assigns_user(self, populated_db):
         boards = crud.list_boards(populated_db)
