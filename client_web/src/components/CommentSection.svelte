@@ -199,6 +199,7 @@
   .text-comment {
     background: color-mix(in srgb, var(--status-started) 8%, var(--color-surface));
     border-left: 3px solid var(--status-started);
+    color: var(--color-text);
   }
   .log-comment {
     font-size: 13px;
