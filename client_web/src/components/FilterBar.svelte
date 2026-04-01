@@ -98,7 +98,7 @@
   });
 </script>
 
-<div class="bar flex gap-2 items-center py-2 mb-3 flex-wrap">
+<div class="bar flex gap-2 items-center py-0.5 mb-0 flex-wrap">
   {#if filterOpen}
     <div class="inline-flex items-center gap-1.5 px-3 h-[30px] bg-surface border-[1.5px] border-primary rounded-2xl flex-1 min-w-[150px] md:min-w-[200px]">
       <span class="text-sm leading-none">&#9783;</span>

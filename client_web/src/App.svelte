@@ -391,7 +391,7 @@
   />
 
   <div class="flex-1 min-w-0 flex flex-col">
-    <header class="flex flex-wrap md:flex-nowrap justify-between items-center px-2 md:px-4 py-2 border-b border-border sticky top-0 z-50 bg-surface gap-1">
+    <header class="flex flex-wrap md:flex-nowrap justify-between items-center px-2 md:px-4 py-1 border-b border-border sticky top-0 z-50 bg-surface gap-1">
       <div class="hidden md:flex items-center gap-3">
         <h1 class="text-base font-semibold ml-10">
           {#if selectedBoard && editingBoardName}
@@ -448,7 +448,7 @@
         <ThemeToggle />
         <ViewToggle {view} onchange={(v) => { view = v; writeURL(); }} />
         {#if selectedBoard}
-          <button class="bg-primary text-white font-semibold py-2 px-5 hover:bg-primary-hover" onclick={() => showForm = true}>+ New Task</button>
+          <button class="bg-primary text-white font-semibold py-1 px-4 text-sm hover:bg-primary-hover" onclick={() => showForm = true}>+ New Task</button>
         {/if}
       </div>
     </header>
