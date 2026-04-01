@@ -100,7 +100,7 @@
 
 <div class="bar flex gap-2 items-center py-2 mb-3 flex-wrap">
   {#if filterOpen}
-    <div class="inline-flex items-center gap-1.5 px-3 h-[30px] bg-surface border-[1.5px] border-primary rounded-2xl min-w-[150px] md:min-w-[200px] max-w-[500px]">
+    <div class="inline-flex items-center gap-1.5 px-3 h-[30px] bg-surface border-[1.5px] border-primary rounded-2xl flex-1 min-w-[150px] md:min-w-[200px]">
       <span class="text-sm leading-none">&#9783;</span>
       <!-- svelte-ignore a11y_autofocus -->
       <input
@@ -125,7 +125,7 @@
   {/if}
 
   {#if sortOpen}
-    <div class="inline-flex items-center gap-1.5 px-3 h-[30px] bg-surface border-[1.5px] border-primary rounded-2xl min-w-[150px] md:min-w-[200px] max-w-[500px]">
+    <div class="inline-flex items-center gap-1.5 px-3 h-[30px] bg-surface border-[1.5px] border-primary rounded-2xl flex-1 min-w-[150px] md:min-w-[200px]">
       <span class="text-sm leading-none">&#8597;</span>
       <!-- svelte-ignore a11y_autofocus -->
       <input
