@@ -4,12 +4,12 @@ Single source of truth for statuses, transitions, comment types, event types,
 and filter fields. Used by both Python (server + CLI) and TypeScript (web client).
 """
 
-from pathlib import Path
+import importlib.resources
 
 import yaml
 
-_SCHEMA_PATH = Path(__file__).resolve().parent.parent / "shared" / "schema.yaml"
-_schema = yaml.safe_load(_SCHEMA_PATH.read_text())
+_schema_text = importlib.resources.files("shared").joinpath("schema.yaml").read_text()
+_schema = yaml.safe_load(_schema_text)
 
 # --- Statuses ---
 
