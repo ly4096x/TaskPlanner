@@ -17,6 +17,27 @@
   let dragOverStatus = $state<string | null>(null);
   let draggingTask = $state<Task | null>(null);
 
+  function canTransition(task: Task, targetStatus: string): boolean {
+    if (task.status === targetStatus) return false;
+    // Non-NEW requires assignee
+    if (targetStatus !== 'NEW' && task.assignee_id == null) return false;
+    // DONE only from STARTED
+    if (targetStatus === 'DONE' && task.status !== 'STARTED') return false;
+    // BLOCKED requires active blockers
+    if (targetStatus === 'BLOCKED' && (!task.blockers || task.blockers.length === 0)) return false;
+    // NOT_REPRODUCIBLE requires a reason (can't do via drag)
+    if (targetStatus === 'NOT_REPRODUCIBLE') return false;
+    return true;
+  }
+
+  function isInvalidDrop(status: string): boolean {
+    return dragOverStatus === status && draggingTask != null && !canTransition(draggingTask, status);
+  }
+
+  function isValidDrop(status: string): boolean {
+    return dragOverStatus === status && draggingTask != null && canTransition(draggingTask, status);
+  }
+
   function handleDragStart(e: DragEvent, task: Task) {
     draggingTask = task;
     e.dataTransfer!.effectAllowed = 'move';
@@ -25,7 +46,11 @@
 
   function handleDragOver(e: DragEvent, status: string) {
     e.preventDefault();
-    e.dataTransfer!.dropEffect = 'move';
+    if (draggingTask && canTransition(draggingTask, status)) {
+      e.dataTransfer!.dropEffect = 'move';
+    } else {
+      e.dataTransfer!.dropEffect = 'none';
+    }
     dragOverStatus = status;
   }
 
@@ -46,7 +71,7 @@
     dragOverStatus = null;
     const task = draggingTask;
     draggingTask = null;
-    if (task && task.status !== targetStatus && onstatuschange) {
+    if (task && canTransition(task, targetStatus) && onstatuschange) {
       onstatuschange(task, targetStatus);
     }
   }
@@ -92,7 +117,7 @@
     {#each grouped as group (group.status)}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
-        class="w-full md:flex-1 md:min-w-60 md:max-w-80 rounded-lg px-2 pt-0.5 pb-1.5 transition-[outline] duration-150 {dragOverStatus === group.status ? 'outline-2 outline-dashed outline-primary' : ''}"
+        class="w-full md:flex-1 md:min-w-60 md:max-w-80 rounded-lg px-2 pt-0.5 pb-1.5 transition-[outline] duration-150 {isValidDrop(group.status) ? 'outline-2 outline-dashed outline-primary' : ''} {isInvalidDrop(group.status) ? 'outline-2 outline-dashed outline-[var(--importance-high)] cursor-not-allowed' : ''}"
         data-status={group.status}
         style="background: color-mix(in srgb, var(--status-{statusCssVar(group.status)}) 8%, var(--color-bg))"
         ondragover={(e) => handleDragOver(e, group.status)}
