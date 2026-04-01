@@ -15,27 +15,10 @@ from typing import Union
 # Valid fields
 # ---------------------------------------------------------------------------
 
-VALID_FIELDS = frozenset(
-    {
-        "ID",
-        "TITLE",
-        "STATUS",
-        "DESCRIPTION",
-        "ASSIGNEE",
-        "IMPORTANCE",
-        "ESTIMATED_EFFORT",
-        "CREATED_TIME",
-        "TAGS",
-        "BLOCKERS",
-        "PARENT",
-    }
-)
+from server.schema import LIST_FIELDS, NUMERIC_FIELDS, VALID_FIELDS
 
 # Fields available in templates (superset of filter fields)
 TEMPLATE_FIELDS = VALID_FIELDS | {"COMMENTS", "PARENT_TITLE"}
-
-NUMERIC_FIELDS = frozenset({"ID", "IMPORTANCE", "ESTIMATED_EFFORT", "CREATED_TIME", "PARENT"})
-LIST_FIELDS = frozenset({"TAGS", "BLOCKERS"})
 
 OPERATORS = (">=", "<=", "!=", "~=", ">", "<", "=")
 

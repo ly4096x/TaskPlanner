@@ -8,7 +8,12 @@ from pathlib import Path
 # Current schema version
 SCHEMA_VERSION = 14
 
-_BASE_SCHEMA = """\
+from server.schema import COMMENT_TYPES, STATUSES
+
+_status_check = ", ".join(f"'{s}'" for s in STATUSES)
+_comment_type_check = ", ".join(f"'{c}'" for c in COMMENT_TYPES)
+
+_BASE_SCHEMA = f"""\
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
 
@@ -49,7 +54,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     estimated_effort INTEGER NOT NULL DEFAULT 0 CHECK (estimated_effort >= 0),
     created_time REAL NOT NULL,
     status TEXT NOT NULL DEFAULT 'NEW'
-        CHECK (status IN ('NEW','STARTED','BLOCKED','WAITING_FOR_COMMAND_EXECUTION','DONE','NOT_REPRODUCIBLE','CANCELLED')),
+        CHECK (status IN ({_status_check})),
     parent_task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
     CHECK (parent_task_id != id)
 );
@@ -73,7 +78,7 @@ CREATE TABLE IF NOT EXISTS comments (
     commenter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     content TEXT NOT NULL,
     comment_type TEXT NOT NULL DEFAULT 'TEXT'
-        CHECK (comment_type IN ('TEXT', 'METADATA_CHANGE', 'EXECUTION_LOG')),
+        CHECK (comment_type IN ({_comment_type_check})),
     created_time REAL NOT NULL
 );
 

@@ -76,17 +76,7 @@ def task_to_template_data(task: dict) -> dict:
 
 # --- Status colors ---
 
-STATUS_COLORS = {
-    "NEW": "green",
-    "STARTED": "yellow",
-    "WAITING_FOR_COMMAND_EXECUTION": "cyan",
-    "DONE": "magenta",
-    "BLOCKED": "bright_red",
-    "NOT_REPRODUCIBLE": "bright_yellow",
-    "CANCELLED": "red",
-}
-
-VALID_STATUSES = list(STATUS_COLORS.keys())
+from server.schema import STATUS_CLI_COLORS as STATUS_COLORS, STATUSES as VALID_STATUSES
 
 
 # --- Helpers ---

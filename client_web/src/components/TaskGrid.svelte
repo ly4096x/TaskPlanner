@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Task } from '../lib/api';
-  import { STATUSES, STATUS_LABELS } from '../lib/statuses';
+  import { STATUSES, STATUS_LABELS, TRANSITIONS, TRANSITION_CONDITIONS } from '../lib/statuses';
   import TaskCard from './TaskCard.svelte';
 
   interface Props {
@@ -17,18 +17,19 @@
   let dragOverStatus = $state<string | null>(null);
   let draggingTask = $state<Task | null>(null);
 
+  const requireAssigneeExcept = new Set((TRANSITION_CONDITIONS.require_assignee_except as string[]) || []);
+
   function canTransition(task: Task, targetStatus: string): boolean {
     if (task.status === targetStatus) return false;
-    // Non-NEW requires assignee
-    if (targetStatus !== 'NEW' && task.assignee_id == null) return false;
-    // DONE only from STARTED
-    if (targetStatus === 'DONE' && task.status !== 'STARTED') return false;
-    // WAITING_FOR_COMMAND_EXECUTION only from STARTED
-    if (targetStatus === 'WAITING_FOR_COMMAND_EXECUTION' && task.status !== 'STARTED') return false;
-    // BLOCKED requires active blockers
-    if (targetStatus === 'BLOCKED' && (!task.blockers || task.blockers.length === 0)) return false;
-    // NOT_REPRODUCIBLE requires a reason (can't do via drag)
-    if (targetStatus === 'NOT_REPRODUCIBLE') return false;
+    // Check transition graph
+    const allowed = TRANSITIONS[task.status];
+    if (!allowed || !allowed.includes(targetStatus)) return false;
+    // Check assignee requirement
+    if (!requireAssigneeExcept.has(targetStatus) && task.assignee_id == null) return false;
+    // Check per-status conditions
+    const cond = TRANSITION_CONDITIONS[targetStatus] as Record<string, unknown> | undefined;
+    if (cond?.require_blockers && (!task.blockers || task.blockers.length === 0)) return false;
+    if (cond?.no_drag) return false;
     return true;
   }
 

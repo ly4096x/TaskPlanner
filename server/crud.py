@@ -476,28 +476,27 @@ def _validate_status_transition(
     effective_assignee_id: int | None,
 ) -> None:
     """Validate a status transition, raising ValueError on invalid transitions."""
-    # Setting to non-NEW requires assignee
-    if new_status != "NEW" and effective_assignee_id is None:
+    from server.schema import TRANSITION_CONDITIONS, is_valid_transition
+
+    current_status = current_task["status"]
+
+    # Check transition graph
+    if not is_valid_transition(current_status, new_status):
+        raise ValueError(
+            f"Cannot set status to {new_status} from {current_status}."
+        )
+
+    # Check assignee requirement
+    exempt = TRANSITION_CONDITIONS.get("require_assignee_except", [])
+    if new_status not in exempt and effective_assignee_id is None:
         raise ValueError(
             f"Cannot set status to {new_status} without an assignee. Assign the task first."
         )
 
-    # WAITING_FOR_COMMAND_EXECUTION can only be reached from STARTED
-    if new_status == "WAITING_FOR_COMMAND_EXECUTION" and current_task["status"] != "STARTED":
-        raise ValueError(
-            f"Cannot set status to WAITING_FOR_COMMAND_EXECUTION from {current_task['status']}. "
-            "Only STARTED tasks can be set to WAITING_FOR_COMMAND_EXECUTION."
-        )
+    # Check per-status conditions
+    conditions = TRANSITION_CONDITIONS.get(new_status, {})
 
-    # DONE can only be reached from STARTED
-    if new_status == "DONE" and current_task["status"] != "STARTED":
-        raise ValueError(
-            f"Cannot set status to DONE from {current_task['status']}. "
-            "Only STARTED tasks can be marked as DONE."
-        )
-
-    # Setting to BLOCKED requires non-empty blockers with at least one active blocker
-    if new_status == "BLOCKED":
+    if conditions.get("require_blockers"):
         current_blockers = current_task.get("blockers", [])
         if not current_blockers:
             raise ValueError(
