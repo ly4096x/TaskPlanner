@@ -551,7 +551,10 @@ def delete_file(
 
 # --- Static web client ---
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+# Installed package has server/static/, dev repo has client_web/dist/
+_pkg_static = Path(__file__).resolve().parent / "static"
+_dev_static = Path(__file__).resolve().parent.parent / "client_web" / "dist"
+STATIC_DIR = _pkg_static if _pkg_static.is_dir() else _dev_static
 
 if STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
