@@ -45,11 +45,11 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="bg-bg rounded-lg px-2.5 py-2 text-left w-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[background] duration-150 cursor-pointer hover:shadow-[0_2px_6px_rgba(0,0,0,0.15)] hover:brightness-[0.97]"
+<div class="bg-bg rounded-lg px-2.5 py-2 text-left w-full overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[background] duration-150 cursor-pointer hover:shadow-[0_2px_6px_rgba(0,0,0,0.15)] hover:brightness-[0.97]"
   onclick={() => onclick(task)}
   style={minimal ? `background: color-mix(in srgb, var(--status-${statusCssVar(task.status)}) 8%, var(--color-surface))` : ''}>
   {#if minimal}
-    <h3 class="text-sm font-normal mb-1 text-text leading-tight">{task.title}</h3>
+    <h3 class="text-sm font-normal mb-1 text-text leading-tight break-words">{task.title}</h3>
     {#if task.assignee_name}
       <div class="text-[11px] text-text-secondary opacity-50">{task.assignee_name}</div>
     {/if}
@@ -58,7 +58,7 @@
       <span class="badge text-[10px] font-semibold px-1.5 py-px rounded-[10px] uppercase leading-[14px] h-4 inline-flex items-center whitespace-nowrap" style="--badge-color: var(--status-{statusCssVar(task.status)})">{statusLabel(task.status)}</span>
       <span class="font-semibold text-xs" style="color: {importanceColor(task.importance)}">{task.importance}</span>
     </div>
-    <h3 class="text-sm font-normal mb-1 text-text leading-tight">{task.title}</h3>
+    <h3 class="text-sm font-normal mb-1 text-text leading-tight break-words">{task.title}</h3>
     {#if task.tags.length > 0}
       <div class="flex flex-wrap gap-1 mb-1">
         {#each task.tags as tag}
