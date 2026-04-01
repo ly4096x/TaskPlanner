@@ -25,9 +25,9 @@ document.addEventListener('mouseenter', (e) => {
     // Center horizontally, clamp to viewport
     let left = rect.left + rect.width / 2 - tipW / 2;
     left = Math.max(4, Math.min(left, window.innerWidth - tipW - 4));
-    // Prefer above, fall back to below if clipped
-    let top = rect.top - tipH - 4;
-    if (top < 4) top = rect.bottom + 4;
+    // Prefer below, fall back to above if clipped
+    let top = rect.bottom + 4;
+    if (top + tipH > window.innerHeight - 4) top = rect.top - tipH - 4;
     tip.style.left = `${left}px`;
     tip.style.top = `${top}px`;
   }
