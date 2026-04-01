@@ -14,8 +14,11 @@ from typing import Union
 # ---------------------------------------------------------------------------
 # Valid fields
 # ---------------------------------------------------------------------------
-
-from server.schema import LIST_FIELDS, NUMERIC_FIELDS, VALID_FIELDS
+from server.schema import (  # pyright: ignore[reportMissingImports]
+    LIST_FIELDS,
+    NUMERIC_FIELDS,
+    VALID_FIELDS,
+)
 
 # Fields available in templates (superset of filter fields)
 TEMPLATE_FIELDS = VALID_FIELDS | {"COMMENTS", "PARENT_TITLE"}

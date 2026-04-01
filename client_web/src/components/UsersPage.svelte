@@ -214,6 +214,7 @@
       <td class="py-2 px-3.5 border-b border-border text-[13px] align-middle last:border-b-0">
         <div class="flex items-center gap-1" style="padding-left: {depth * 20}px">
           {#if hasChildren(user.id)}
+            <!-- svelte-ignore a11y_consider_explicit_label -->
             <button class="bg-none border-none p-0 cursor-pointer text-text-secondary w-[18px] h-[18px] inline-flex items-center justify-center shrink-0 hover:text-text" onclick={() => toggleCollapse(user.id)}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-150 {collapsed.has(user.id) ? '-rotate-90' : ''}">
                 <path d="M3 4.5L6 7.5L9 4.5"/>

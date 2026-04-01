@@ -5,10 +5,10 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from server.schema import COMMENT_TYPES, STATUSES  # pyright: ignore[reportMissingImports]
+
 # Current schema version
 SCHEMA_VERSION = 14
-
-from server.schema import COMMENT_TYPES, STATUSES
 
 _status_check = ", ".join(f"'{s}'" for s in STATUSES)
 _comment_type_check = ", ".join(f"'{c}'" for c in COMMENT_TYPES)

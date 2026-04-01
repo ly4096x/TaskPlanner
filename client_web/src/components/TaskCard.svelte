@@ -44,9 +44,10 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div class="bg-bg rounded-lg px-2.5 py-2 text-left w-full overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[background] duration-150 cursor-pointer hover:shadow-[0_2px_6px_rgba(0,0,0,0.15)] hover:brightness-[0.97]"
+  role="button" tabindex="0"
   onclick={() => onclick(task)}
+  onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onclick(task); } }}
   style={minimal ? `background: color-mix(in srgb, var(--status-${statusCssVar(task.status)}) 8%, var(--color-surface))` : ''}>
   {#if minimal}
     <h3 class="text-sm font-normal mb-1 text-text leading-tight break-words">{task.title}</h3>

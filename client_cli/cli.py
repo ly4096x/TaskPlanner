@@ -12,6 +12,11 @@ from datetime import datetime
 import click
 import httpx
 
+from server.schema import (  # pyright: ignore[reportMissingImports]
+    STATUS_CLI_COLORS as STATUS_COLORS,
+)
+from server.schema import STATUSES as VALID_STATUSES
+
 # --- Template renderer (client-side, no server imports) ---
 
 
@@ -72,11 +77,6 @@ def task_to_template_data(task: dict) -> dict:
         "PARENT": task.get("parent_task_id") or "",
         "PARENT_TITLE": task.get("parent_title") or "",
     }
-
-
-# --- Status colors ---
-
-from server.schema import STATUS_CLI_COLORS as STATUS_COLORS, STATUSES as VALID_STATUSES
 
 
 # --- Helpers ---

@@ -476,7 +476,10 @@ def _validate_status_transition(
     effective_assignee_id: int | None,
 ) -> None:
     """Validate a status transition, raising ValueError on invalid transitions."""
-    from server.schema import TRANSITION_CONDITIONS, is_valid_transition
+    from server.schema import (  # pyright: ignore[reportMissingImports]
+        TRANSITION_CONDITIONS,
+        is_valid_transition,
+    )
 
     current_status = current_task["status"]
 
