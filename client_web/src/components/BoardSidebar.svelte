@@ -20,6 +20,27 @@
   let newName = $state('');
   let submitting = $state(false);
   let error = $state('');
+  let sidebarWidth = $state(parseInt(localStorage.getItem('sidebarWidth') || '220'));
+  let resizing = $state(false);
+
+  function startResize(e: MouseEvent) {
+    e.preventDefault();
+    resizing = true;
+    document.body.classList.add('select-none');
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(150, Math.min(500, ev.clientX));
+      sidebarWidth = w;
+    };
+    const onUp = () => {
+      resizing = false;
+      document.body.classList.remove('select-none');
+      localStorage.setItem('sidebarWidth', String(sidebarWidth));
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
 
   function selectBoard(board: Board) {
     onselect(board);
@@ -58,7 +79,9 @@
     </svg>
   </button>
 
-  <div class="sidebar-inner w-[220px] bg-surface border-r border-border flex flex-col overflow-hidden transition-[width] duration-200">
+  <div class="sidebar-inner bg-surface border-r border-border flex flex-col overflow-hidden relative {resizing ? '' : 'transition-[width] duration-200'}" style="width: {sidebarWidth}px">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="resize-handle absolute top-0 right-0 w-1 h-full cursor-col-resize z-10 hover:bg-primary/30 {resizing ? 'bg-primary/30' : ''}" onmousedown={startResize}></div>
     <div class="px-3 pt-4 pb-3 border-b border-border flex items-center justify-between">
       <span class="text-[13px] font-bold uppercase tracking-wide text-text-secondary">Boards</span>
       {#if !creating}
