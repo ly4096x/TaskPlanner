@@ -947,8 +947,9 @@ def create_attachment(
 
 
 def get_attachments(conn: sqlite3.Connection, task_id: int) -> list[dict]:
+    """Fetch task-level attachments only (excludes comment attachments)."""
     rows = conn.execute(
-        "SELECT * FROM attachments WHERE task_id = ? ORDER BY id",
+        "SELECT * FROM attachments WHERE task_id = ? AND comment_id IS NULL ORDER BY id",
         (task_id,),
     ).fetchall()
     return [dict(r) for r in rows]

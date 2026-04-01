@@ -856,6 +856,23 @@ class TestCommentLevelAttachments:
         assert len(comment_atts) == 1
         assert comment_atts[0]["original_name"] == "a.txt"
 
+    def test_get_attachments_excludes_comment_attachments(self, db):
+        board = crud.create_board(db, name="B")
+        task = crud.create_task(db, board_id=board["id"], title="Task")
+        comment = crud.add_comment(db, task["id"], "Comment")
+        crud.create_attachment(
+            db, board_id=board["id"], task_id=task["id"],
+            filename="comment_file.txt", original_name="comment_file.txt",
+            comment_id=comment["id"],
+        )
+        crud.create_attachment(
+            db, board_id=board["id"], task_id=task["id"],
+            filename="task_file.txt", original_name="task_file.txt",
+        )
+        task_atts = crud.get_attachments(db, task["id"])
+        assert len(task_atts) == 1
+        assert task_atts[0]["original_name"] == "task_file.txt"
+
     def test_task_level_attachment_has_null_comment_id(self, db):
         board = crud.create_board(db, name="B")
         task = crud.create_task(db, board_id=board["id"], title="Task")
