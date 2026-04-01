@@ -334,7 +334,24 @@ def handle_stop_watch(data):
         result = subprocess.run(watch_cmd, capture_output=True, text=True)
         if result.returncode == 2:
             # Exit code 2 = actionable task found — propagate to asyncRewake
+            # Re-verify the task is still actionable before waking agent
             msg = result.stdout.strip() or "TaskPlanner watch returned 2 without stdout"
+            # Parse task ID from watch output: "... #ID [STATUS]..."
+            import re as _re
+
+            m = _re.search(r"#(\d+)", msg)
+            if m:
+                task_id = m.group(1)
+                task_json = run_cli("list", "--format", "json", "-f", f"ID={task_id}", "-L", "1")
+                if task_json:
+                    try:
+                        tasks = json.loads(task_json)
+                        if tasks:
+                            status = tasks[0].get("status", "")
+                            if status in ("DONE", "CANCELLED", "NOT_REPRODUCIBLE"):
+                                return  # Task already resolved, don't wake
+                    except (json.JSONDecodeError, TypeError):
+                        pass
             print(msg)
             sys.exit(2)
     except Exception:
