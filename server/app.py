@@ -556,8 +556,12 @@ if STATIC_DIR.is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="static-assets")
 
     @app.get("/{full_path:path}")
-    def spa_fallback(full_path: str):  # noqa: ARG001
-        """Serve index.html for all non-API routes (SPA client-side routing)."""
+    def spa_fallback(full_path: str):
+        """Serve static files if they exist, otherwise fall back to index.html for SPA routing."""
+        # Serve exact static file if it exists (e.g. /favicon.svg)
+        static_file = STATIC_DIR / full_path
+        if full_path and static_file.is_file() and STATIC_DIR in static_file.resolve().parents:
+            return FileResponse(static_file)
         index = STATIC_DIR / "index.html"
         if index.exists():
             return HTMLResponse(index.read_text())
