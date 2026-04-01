@@ -120,10 +120,10 @@ def _find_env_board_id() -> int | None:
 
 
 def get_board_id(ctx: click.Context) -> int:
-    """Get board ID from --board flag, TASKPLANNER_BOARD env var, or .env file."""
+    """Get board ID from --board flag, TASKPLANNER_BOARD_ID env var, or .env file."""
     board = ctx.obj.get("board")
     if board is None:
-        env_board = os.environ.get("TASKPLANNER_BOARD")
+        env_board = os.environ.get("TASKPLANNER_BOARD_ID")
         if env_board:
             try:
                 board = int(env_board)
@@ -134,7 +134,7 @@ def get_board_id(ctx: click.Context) -> int:
     if board is None:
         click.echo(
             click.style(
-                "Error: --board/-b option, TASKPLANNER_BOARD env var, or TASKPLANNER_BOARD_ID in .env is required.",
+                "Error: --board/-b option, TASKPLANNER_BOARD_ID env var, or TASKPLANNER_BOARD_ID in .env is required.",
                 fg="red",
             ),
             err=True,
