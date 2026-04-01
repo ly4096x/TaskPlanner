@@ -44,7 +44,8 @@
   }
 </script>
 
-<button class="bg-bg border-none rounded-lg px-2.5 py-2 text-left w-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[background] duration-150 hover:shadow-[0_2px_6px_rgba(0,0,0,0.15)] hover:brightness-[0.97]"
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div class="bg-bg rounded-lg px-2.5 py-2 text-left w-full shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-[background] duration-150 cursor-pointer hover:shadow-[0_2px_6px_rgba(0,0,0,0.15)] hover:brightness-[0.97]"
   onclick={() => onclick(task)}
   style={minimal ? `background: color-mix(in srgb, var(--status-${statusCssVar(task.status)}) 8%, var(--color-surface))` : ''}>
   {#if minimal}
@@ -69,7 +70,7 @@
       <div class="text-[11px] text-text-secondary opacity-50">{task.assignee_name}</div>
     {/if}
   {/if}
-</button>
+</div>
 
 <style>
   .badge {

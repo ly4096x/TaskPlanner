@@ -14,71 +14,34 @@
 
   let { tasks, onselect, onstatuschange, groupByStatus = true, visibleStatuses, statusOrder }: Props = $props();
 
-  // Mouse-based drag state
-  let draggingTask = $state<Task | null>(null);
   let dragOverStatus = $state<string | null>(null);
-  let dragGhost = $state<HTMLElement | null>(null);
 
-  function handleMouseDown(e: MouseEvent, task: Task) {
-    if (!onstatuschange) return;
-    // Only left mouse button
-    if (e.button !== 0) return;
+  function handleDragStart(e: DragEvent, task: Task) {
+    e.dataTransfer!.effectAllowed = 'move';
+    e.dataTransfer!.setData('text/plain', String(task.id));
+  }
 
-    const startX = e.clientX;
-    const startY = e.clientY;
-    let started = false;
+  function handleDragOver(e: DragEvent, status: string) {
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'move';
+    dragOverStatus = status;
+  }
 
-    function onMove(ev: MouseEvent) {
-      const dx = ev.clientX - startX;
-      const dy = ev.clientY - startY;
-
-      // Require 5px movement to start drag (avoid accidental drags on click)
-      if (!started && Math.abs(dx) + Math.abs(dy) < 5) return;
-
-      if (!started) {
-        started = true;
-        draggingTask = task;
-        document.body.classList.add('select-none');
-
-        // Create ghost element
-        const ghost = document.createElement('div');
-        ghost.textContent = task.title;
-        ghost.className = 'fixed pointer-events-none z-[9999] bg-surface border border-primary rounded-lg px-3 py-2 text-sm shadow-lg opacity-80 max-w-60 truncate';
-        document.body.appendChild(ghost);
-        dragGhost = ghost;
-      }
-
-      if (dragGhost) {
-        dragGhost.style.left = `${ev.clientX + 12}px`;
-        dragGhost.style.top = `${ev.clientY + 12}px`;
-      }
-
-      // Detect which column we're over
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      const col = el?.closest('[data-status]') as HTMLElement | null;
-      dragOverStatus = col?.dataset.status ?? null;
+  function handleDragLeave(e: DragEvent, status: string) {
+    const related = e.relatedTarget as HTMLElement | null;
+    if (!related || !(e.currentTarget as HTMLElement).contains(related)) {
+      if (dragOverStatus === status) dragOverStatus = null;
     }
+  }
 
-    function onUp() {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      document.body.classList.remove('select-none');
-
-      if (dragGhost) {
-        dragGhost.remove();
-        dragGhost = null;
-      }
-
-      if (started && draggingTask && dragOverStatus && dragOverStatus !== draggingTask.status) {
-        onstatuschange!(draggingTask, dragOverStatus);
-      }
-
-      draggingTask = null;
-      dragOverStatus = null;
+  function handleDrop(e: DragEvent, targetStatus: string) {
+    e.preventDefault();
+    dragOverStatus = null;
+    const taskId = parseInt(e.dataTransfer!.getData('text/plain'));
+    const task = tasks.find(t => t.id === taskId);
+    if (task && task.status !== targetStatus && onstatuschange) {
+      onstatuschange(task, targetStatus);
     }
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
   }
 
   const STATUS_ORDER = [...STATUSES];
@@ -92,7 +55,6 @@
   }
 
   let internalVisibleStatuses = $state(loadVisibleStatuses());
-
   let effectiveVisibleStatuses = $derived(visibleStatuses ?? internalVisibleStatuses);
 
   function statusCssVar(status: string): string {
@@ -121,10 +83,13 @@
 {:else if groupByStatus && grouped}
   <div class="flex flex-col md:flex-row gap-3 md:gap-2 overflow-x-auto px-4 pt-3 pb-2 items-start h-full">
     {#each grouped as group (group.status)}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="w-full md:flex-1 md:min-w-60 md:max-w-80 rounded-lg px-2 pt-0.5 pb-1.5 transition-[outline] duration-150 {dragOverStatus === group.status ? 'outline-2 outline-dashed outline-primary' : ''}"
         style="background: color-mix(in srgb, var(--status-{statusCssVar(group.status)}) 8%, var(--color-bg))"
-        data-status={group.status}
+        ondragover={(e) => handleDragOver(e, group.status)}
+        ondragleave={(e) => handleDragLeave(e, group.status)}
+        ondrop={(e) => handleDrop(e, group.status)}
       >
         <h3 class="text-sm font-semibold mb-0.5 flex items-center gap-2" style="color: var(--status-{statusCssVar(group.status)})">
           <span class="w-2 h-2 rounded-full inline-block shrink-0" style="background: var(--status-{statusCssVar(group.status)})"></span>
@@ -133,8 +98,7 @@
         </h3>
         <div class="flex flex-col gap-2 min-h-5">
           {#each group.tasks as task (task.id)}
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <div onmousedown={(e) => handleMouseDown(e, task)} class="{onstatuschange ? 'cursor-grab' : ''}">
+            <div draggable={onstatuschange ? 'true' : 'false'} ondragstart={(e) => handleDragStart(e, task)} class="{onstatuschange ? 'cursor-grab' : ''}">
               <TaskCard {task} onclick={onselect} minimal />
             </div>
           {/each}
