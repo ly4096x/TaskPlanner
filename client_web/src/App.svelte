@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { listTasks, listBoards, editBoard, subscribeToBoardEvents, type Task, type Board, type BoardEvent } from './lib/api';
+  import { listTasks, listBoards, editBoard, editTask, subscribeToBoardEvents, type Task, type Board, type BoardEvent } from './lib/api';
   import BoardSidebar from './components/BoardSidebar.svelte';
   import ViewToggle from './components/ViewToggle.svelte';
   import TaskList from './components/TaskList.svelte';
@@ -266,6 +266,19 @@
     selectedTask = task;
   }
 
+  async function handleKanbanStatusChange(task: Task, newStatus: string) {
+    // Optimistic update
+    const oldStatus = task.status;
+    tasks = tasks.map(t => t.id === task.id ? { ...t, status: newStatus as Task['status'] } : t);
+    try {
+      const updated = await editTask(selectedBoard!.id, task.id, { status: newStatus as Task['status'] }, currentUsername);
+      tasks = tasks.map(t => t.id === updated.id ? updated : t);
+    } catch (e) {
+      // Revert on failure
+      tasks = tasks.map(t => t.id === task.id ? { ...t, status: oldStatus } : t);
+    }
+  }
+
   function handleTaskUpdated(updated: Task) {
     tasks = tasks.map(t => t.id === updated.id ? updated : t);
     selectedTask = updated;
@@ -473,7 +486,7 @@
         {#if view === 'list'}
           <TaskList tasks={sortedTasks} onselect={handleSelect} {sortField} {sortDir} onsort={handleSort} />
         {:else}
-          <TaskGrid tasks={sortedTasks} onselect={handleSelect} visibleStatuses={kanbanVisibleStatuses} statusOrder={kanbanStatusOrder} />
+          <TaskGrid tasks={sortedTasks} onselect={handleSelect} onstatuschange={handleKanbanStatusChange} visibleStatuses={kanbanVisibleStatuses} statusOrder={kanbanStatusOrder} />
         {/if}
       {/if}
     </main>
