@@ -321,6 +321,12 @@ def handle_stop_watch(data):
 
     session_id = get_session_id(data)
 
+    # Kill any existing watcher before starting a new one
+    stop_args = ["watch", "--stop"]
+    if session_id:
+        stop_args += ["--session-id", session_id]
+    run_cli(*stop_args, timeout=10)
+
     watch_cmd = [CLI, "watch"]
     if session_id:
         watch_cmd += ["--session-id", session_id]
