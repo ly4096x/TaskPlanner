@@ -21,6 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: mkdir -p client_web/dist && touch client_web/dist/index.html
       - run: uv run pytest -x -q
 
   lint:
@@ -28,6 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: mkdir -p client_web/dist && touch client_web/dist/index.html
       - run: uv run ruff check .
 
   build-web:
@@ -63,9 +69,14 @@ jobs:
           echo "VERSION=$TAG_VERSION" >> $GITHUB_ENV
 
       # Build CLI binary with Nuitka
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - uses: astral-sh/setup-uv@v5
       - name: Install Nuitka and deps
-        run: uv pip install --system nuitka click httpx pyyaml ordered-set
+        run: |
+          mkdir -p client_web/dist && touch client_web/dist/index.html
+          uv pip install --system nuitka click httpx pyyaml ordered-set
       - name: Build CLI binary
         run: |
           python3 -m nuitka \
