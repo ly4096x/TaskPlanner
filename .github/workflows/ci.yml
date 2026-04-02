@@ -23,7 +23,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
-      - run: mkdir -p client_web/dist && touch client_web/dist/index.html
+      - run: mkdir -p client_web/dist/assets && touch client_web/dist/index.html
       - run: uv run pytest -x -q
 
   lint:
@@ -33,7 +33,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.13"
-      - run: mkdir -p client_web/dist && touch client_web/dist/index.html
+      - run: mkdir -p client_web/dist/assets && touch client_web/dist/index.html
       - run: uv run ruff check .
 
   build-web:
