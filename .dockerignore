@@ -1,0 +1,10 @@
+.jj
+.claude
+dist
+client_web/node_modules
+server/runtime_data
+tests
+__pycache__
+*.pyc
+.ruff_cache
+.pytest_cache
