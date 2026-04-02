@@ -13,7 +13,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ly4096x/taskplanner
 
 jobs:
   test:
@@ -119,11 +119,12 @@ jobs:
           podman push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       # Create GitHub release with CLI binary
-      - name: Create release
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "v${{ env.VERSION }}" \
             --title "v${{ env.VERSION }}" \
             --generate-notes \
-            dist/TaskPlanner
+            dist/TaskPlanner \
+          || gh release upload "v${{ env.VERSION }}" dist/TaskPlanner --clobber
