@@ -1,0 +1,323 @@
+"""Claude Code hook command and helper functions."""
+
+import json
+
+import click
+import httpx
+
+# Import get_board_id from cli (not helpers) so tests can patch client_cli.cli._find_env_board_id
+from client_cli.cli import get_board_id
+from client_cli.helpers import (
+    get_server_url,
+)
+
+
+def register(cli):
+    """Register the claude-hook command with the CLI group."""
+    cli.add_command(claude_hook)
+
+
+# --- Hook helpers ---
+
+
+def _hook_output(data):
+    """Print hook JSON response to stdout."""
+    click.echo(json.dumps(data))
+
+
+def _hook_deny(reason):
+    """Output a PreToolUse deny response."""
+    _hook_output({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    })
+
+
+def _hook_get_auth_headers(ctx):
+    """Get auth headers for hook — returns empty dict if no token (graceful)."""
+    token = ctx.obj.get("token")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {}
+
+
+def _hook_api_get(url, headers):
+    """GET with error handling — returns response or None."""
+    try:
+        resp = httpx.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return None
+
+
+def _hook_api_post(url, headers, json_data=None):
+    """POST with error handling — returns response or None."""
+    try:
+        resp = httpx.post(url, headers=headers, json=json_data, timeout=5)
+        if resp.status_code in (200, 201):
+            return resp.json()
+    except Exception:
+        pass
+    return None
+
+
+def _hook_make_agent_identity(session_id, subagent_id=None):
+    """Build (username, display_name, external_id) from session/subagent IDs."""
+    session_clean = session_id.replace("-", "_")
+    if subagent_id and subagent_id != "main":
+        sub_clean = subagent_id.replace("-", "_")
+        username = f"agent_{session_clean}_{sub_clean}"
+        short = f"Agent {session_clean[:6]}_{sub_clean[:4]}"
+        ext_id = f"agent:{session_id}:{subagent_id}"
+    else:
+        username = f"agent_{session_clean}"
+        short = f"Agent {session_clean[:6]}"
+        ext_id = f"agent:{session_id}"
+    return username, short, ext_id
+
+
+def _hook_resolve_user(url, headers, session_id, agent_id):
+    """Look up agent user by external_id pattern. Returns user dict or None."""
+    users = _hook_api_get(f"{url}/api/v1/users", headers)
+    if not users:
+        return None
+    _, _, ext_id = _hook_make_agent_identity(session_id, agent_id if agent_id != "main" else None)
+    for u in users:
+        if u.get("external_id") == ext_id:
+            return u
+    return None
+
+
+def _hook_get_or_create_user(url, headers, session_id, agent_id):
+    """Get or create agent user. Returns user dict or None."""
+    user = _hook_resolve_user(url, headers, session_id, agent_id)
+    if user:
+        return user
+    # Create
+    username, display_name, ext_id = _hook_make_agent_identity(
+        session_id, agent_id if agent_id != "main" else None
+    )
+    body = {"username": username, "display_name": display_name, "external_id": ext_id}
+    # Set report_to for subagents
+    if agent_id != "main":
+        main_user = _hook_resolve_user(url, headers, session_id, "main")
+        if main_user:
+            body["report_to"] = main_user["username"]
+    return _hook_api_post(f"{url}/api/v1/users", headers, body)
+
+
+def _hook_get_agent_tasks(url, headers, board_id, user_id, filter_expr=None, limit=None):
+    """Get tasks for agent. Returns list or None."""
+    params = {}
+    if filter_expr:
+        params["filter"] = filter_expr
+    if limit is not None:
+        params["limit"] = str(limit)
+    try:
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        full_url = f"{url}/api/v1/board/{board_id}/tasks" + (f"?{qs}" if qs else "")
+        tasks = _hook_api_get(full_url, headers)
+        if tasks is None:
+            return None
+        return [t for t in tasks if t.get("assignee_id") is None or t.get("assignee_id") == user_id]
+    except Exception:
+        return None
+
+
+def _hook_format_task_list(tasks):
+    """Format tasks sorted by importance desc."""
+    sorted_tasks = sorted(tasks, key=lambda t: t.get("importance", 0), reverse=True)
+    return "\n".join(
+        f"  #{t['id']}: [{t['status']}] {t['title']} (importance:{t.get('importance', 0)})"
+        for t in sorted_tasks
+    )
+
+
+HOOK_ESCAPE_HATCH = "THIS_IS_AN_EMERGENCY_SOMETHING_WENT_WRONG_I_NEED_TO_STOP"
+
+
+@click.command("claude-hook")
+@click.argument("event")
+@click.pass_context
+def claude_hook(ctx, event):
+    """Handle Claude Code hook events. Reads JSON from stdin."""
+    data = json.loads(click.get_text_stream("stdin").read())
+    url = get_server_url(ctx)
+    headers = _hook_get_auth_headers(ctx)
+    session_id = data.get("session_id", "")
+    agent_id = data.get("agent_id") or "main"
+
+    if event == "SessionStart":
+        _handle_session_start(ctx, url, headers, data, session_id, agent_id)
+    elif event == "PreToolUse":
+        _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id)
+    elif event == "Stop":
+        _handle_stop(ctx, url, headers, data, session_id, agent_id)
+    elif event == "SubagentStart":
+        _hook_get_or_create_user(url, headers, session_id, agent_id)
+    # Unknown events silently pass through
+
+
+def _handle_session_start(ctx, url, headers, data, session_id, agent_id):
+    """SessionStart: create agent user, show pending tasks."""
+    user = _hook_get_or_create_user(url, headers, session_id, agent_id)
+    if not user:
+        return
+
+    username = user.get("username", "")
+    board = ctx.obj.get("board")
+    if not board:
+        try:
+            board = get_board_id(ctx)
+        except SystemExit:
+            return
+
+    tasks = _hook_get_agent_tasks(url, headers, board, user["id"])
+    if not tasks:
+        return
+
+    started = [t for t in tasks if t["status"] == "STARTED"]
+    new = [t for t in tasks if t["status"] == "NEW"]
+    waiting = [t for t in tasks if t["status"] == "WAITING_FOR_COMMAND_EXECUTION"]
+
+    lines = []
+    if started:
+        lines.append("Active tasks:")
+        lines.append(_hook_format_task_list(started))
+    if new:
+        lines.append("Pending tasks:")
+        lines.append(_hook_format_task_list(new))
+    if waiting:
+        lines.append("Waiting tasks:")
+        lines.append(_hook_format_task_list(waiting))
+
+    if lines:
+        msg = (
+            "TaskPlanner — your tasks:\n"
+            + "\n".join(lines)
+            + "\n\nStart a task:"
+            + "\n  $ TaskPlanner edit <id> --status STARTED"
+            + "\nCreate a task:"
+            + f'\n  $ TaskPlanner add-task --title "desc" --assignee {username}'
+        )
+        _hook_output({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": msg,
+            }
+        })
+
+
+def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
+    """PreToolUse: require active task for Bash/Edit/Write."""
+    tool_name = data.get("tool_name", "")
+    tool_input = data.get("tool_input", {})
+
+    if tool_name not in ("Bash", "Edit", "Write"):
+        return
+
+    command = tool_input.get("command", "")
+
+    # Always allow TaskPlanner CLI commands
+    if tool_name == "Bash" and (command.strip().startswith("TaskPlanner ") or command.strip().startswith("taskplanner ")):
+        return
+
+    # Look up agent user
+    user = _hook_resolve_user(url, headers, session_id, agent_id)
+    if not user:
+        return  # User not found — pass through
+
+    board = ctx.obj.get("board")
+    if not board:
+        try:
+            board = get_board_id(ctx)
+        except SystemExit:
+            return
+
+    tasks = _hook_get_agent_tasks(url, headers, board, user["id"], limit=0)
+    if tasks is None:
+        _hook_deny("Cannot fetch task list from TaskPlanner. Is the server running?")
+        return
+
+    active = [t for t in tasks if t["status"] == "STARTED"]
+    if not active:
+        pending = [t for t in tasks if t["status"] in ("NEW", "STARTED")]
+        if pending:
+            task_list = _hook_format_task_list(pending)
+            _hook_deny(
+                f"No STARTED task. Your tasks:\n{task_list}\n\n"
+                "Start a task:\n"
+                "  $ TaskPlanner edit <id> --status STARTED"
+            )
+        else:
+            _hook_deny(
+                "No tasks assigned to you. Create one first:\n"
+                f'  $ TaskPlanner add-task [--start] --title "your task" --assignee {user["username"]}'
+            )
+        return
+
+    if tool_name in ("Edit", "Write"):
+        return
+
+    # For Bash: require description to reference the active task
+    description = tool_input.get("description", "")
+    current_task = active[0]
+    ct_tag = f" Task#{current_task['id']}"
+    if not description.endswith(ct_tag):
+        _hook_deny(
+            'Command description must reference the active task.\nAdd suffix to your description: " Task#<task_id>"'
+        )
+        return
+
+    # Log as comment
+    reason = description.split(ct_tag)[0].strip() or "(no description)"
+    _hook_api_post(
+        f"{url}/api/v1/board/{board}/tasks/{current_task['id']}/new_comment",
+        headers,
+        {"content": f"[Tool:Bash] {reason}\n\n```bash\n{command}\n```", "comment_type": "EXECUTION_LOG"},
+    )
+
+
+def _handle_stop(ctx, url, headers, data, session_id, agent_id):
+    """Stop: block if agent has unresolved tasks."""
+    last_msg = data.get("last_assistant_message", "")
+    if HOOK_ESCAPE_HATCH in last_msg:
+        return
+
+    user = _hook_resolve_user(url, headers, session_id, agent_id)
+    if not user:
+        return
+
+    board = ctx.obj.get("board")
+    if not board:
+        try:
+            board = get_board_id(ctx)
+        except SystemExit:
+            return
+
+    username = user["username"]
+    tasks = _hook_get_agent_tasks(
+        url, headers, board, user["id"],
+        filter_expr=f"(STATUS=NEW OR STATUS=STARTED),(ASSIGNEE={username} OR ASSIGNEE=)",
+    )
+    if not tasks:
+        return
+
+    incomplete = [t for t in tasks if t["status"] in ("NEW", "STARTED")]
+    if incomplete:
+        task_list = _hook_format_task_list(incomplete)
+        _hook_output({
+            "decision": "block",
+            "reason": (
+                f"You have {len(incomplete)} unresolved task(s):\n{task_list}"
+                "\nResolve with:"
+                "\n  $ TaskPlanner edit <id> --status DONE|BLOCKED|CANCELLED|WAITING_FOR_COMMAND_EXECUTION"
+                f"\nNeed more info from the user? Post what you need as a comment for the task, then set status to NEW and assign to the user:"
+                f"\n  $ TaskPlanner edit <id> --status NEW --assignee <username>"
+            ),
+        })

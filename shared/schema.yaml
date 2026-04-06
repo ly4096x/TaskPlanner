@@ -1,0 +1,79 @@
+statuses:
+  - id: NEW
+    label: New
+    cli_color: green
+  - id: STARTED
+    label: Started
+    cli_color: yellow
+  - id: BLOCKED
+    label: Blocked
+    cli_color: cyan
+  - id: WAITING_FOR_COMMAND_EXECUTION
+    label: Waiting for Exec
+    cli_color: magenta
+  - id: DONE
+    label: Done
+    cli_color: bright_red
+  - id: NOT_REPRODUCIBLE
+    label: Not Reproducible
+    cli_color: bright_yellow
+  - id: CANCELLED
+    label: Cancelled
+    cli_color: red
+
+transitions:
+  NEW: [STARTED, CANCELLED]
+  STARTED: [DONE, BLOCKED, WAITING_FOR_COMMAND_EXECUTION, CANCELLED, NEW]
+  BLOCKED: [STARTED, NEW, CANCELLED]
+  WAITING_FOR_COMMAND_EXECUTION: [STARTED, NEW, CANCELLED]
+  DONE: [STARTED, NEW]
+  NOT_REPRODUCIBLE: [NEW]
+  CANCELLED: [NEW]
+
+transition_conditions:
+  require_assignee_except: [NEW]
+  BLOCKED:
+    require_blockers: true
+  NOT_REPRODUCIBLE:
+    require_reason: "Not reproducible because:"
+    no_drag: true
+
+roles:
+  - admin
+  - member
+  - viewer
+
+permissions:
+  - none
+  - read
+  - write
+
+comment_types:
+  - TEXT
+  - METADATA_CHANGE
+  - EXECUTION_LOG
+
+event_types:
+  - task_created
+  - task_updated
+  - comment_added
+
+filter_fields:
+  - id: ID
+    numeric: true
+  - id: TITLE
+  - id: STATUS
+  - id: DESCRIPTION
+  - id: ASSIGNEE
+  - id: IMPORTANCE
+    numeric: true
+  - id: ESTIMATED_EFFORT
+    numeric: true
+  - id: CREATED_TIME
+    numeric: true
+  - id: TAGS
+    list: true
+  - id: BLOCKERS
+    list: true
+  - id: PARENT
+    numeric: true
