@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { listUsers, createUser, editUser, createToken, listTokens, revokeToken, type User, type TokenInfo, type TokenCreated } from '../lib/api';
+  import { listUsers, createUser, editUser, createToken, listTokens, revokeToken, listRoles, createRoleApi, editRoleApi, deleteRoleApi, ACL_ACTIONS, type User, type TokenInfo, type TokenCreated, type Role } from '../lib/api';
   import { Icon, ChevronDown } from 'svelte-hero-icons';
 
   interface Props {
@@ -25,6 +25,46 @@
   let newTokenLabel = $state('');
   let createdToken = $state<string | null>(null);
   let tokenLoading = $state(false);
+
+  // Roles
+  let roles = $state<Role[]>([]);
+  let showRoles = $state(false);
+  let editingRoleId = $state<number | null>(null);
+  let newRoleName = $state('');
+  let newRoleDesc = $state('');
+  let newRolePerms = $state<Set<string>>(new Set());
+  let creatingRole = $state(false);
+
+  async function loadRoles() {
+    try { roles = await listRoles(); } catch { roles = []; }
+  }
+
+  async function handleCreateRole() {
+    if (!newRoleName.trim()) return;
+    creatingRole = true;
+    try {
+      await createRoleApi({ name: newRoleName.trim(), description: newRoleDesc.trim(), permissions: [...newRolePerms] });
+      newRoleName = '';
+      newRoleDesc = '';
+      newRolePerms = new Set();
+      await loadRoles();
+    } catch {} finally { creatingRole = false; }
+  }
+
+  async function handleDeleteRole(roleId: number) {
+    try {
+      await deleteRoleApi(roleId);
+      await loadRoles();
+    } catch {}
+  }
+
+  async function handleSaveRole(roleId: number, name: string, description: string, permissions: string[]) {
+    try {
+      await editRoleApi(roleId, { name, description, permissions });
+      editingRoleId = null;
+      await loadRoles();
+    } catch {}
+  }
 
   async function loadUsers() {
     loading = true;
@@ -92,9 +132,9 @@
     }
   }
 
-  async function handleSetRole(user: User, role: string) {
+  async function handleSetRole(user: User, roleId: string) {
     try {
-      const updated = await editUser(user.id, { role });
+      const updated = await editUser(user.id, { role_id: Number(roleId) } as any);
       users = users.map(u => u.id === updated.id ? updated : u);
     } catch {}
   }
@@ -140,6 +180,7 @@
   }
 
   loadUsers();
+  loadRoles();
 </script>
 
 <div class="px-3 md:px-6 py-4">
@@ -148,6 +189,7 @@
     <div class="flex gap-2">
       {#if !showForm}
         <button class="bg-primary text-white font-semibold py-1.5 px-3.5 text-[13px]" onclick={() => showForm = true}>+ Add User</button>
+        <button class="bg-bg text-text-secondary py-1.5 px-3.5 text-[13px]" onclick={() => showRoles = !showRoles}>{showRoles ? 'Hide Roles' : 'Manage Roles'}</button>
       {/if}
       <button class="bg-bg text-text-secondary py-1.5 px-3.5 text-[13px]" onclick={onclose}>Back</button>
     </div>
@@ -179,6 +221,64 @@
         <button class="bg-bg text-text py-[5px] px-3.5 text-[13px]" onclick={() => { showForm = false; createError = ''; }}>Cancel</button>
         <button class="bg-primary text-white py-[5px] px-3.5 text-[13px] font-semibold disabled:opacity-50" onclick={handleCreate} disabled={creating}>
           {creating ? 'Creating...' : 'Create'}
+        </button>
+      </div>
+    </div>
+  {/if}
+
+  {#if showRoles}
+    <div class="bg-surface border border-border rounded-[--radius] p-4 mb-4">
+      <h3 class="text-sm font-semibold mb-3">Roles</h3>
+      <div class="flex flex-col gap-2 mb-3">
+        {#each roles as r (r.id)}
+          <div class="flex items-center gap-3 py-1.5 px-2 bg-bg rounded text-sm">
+            <span class="font-semibold min-w-[80px]">{r.name}</span>
+            <span class="text-text-secondary text-xs flex-1">{r.permissions.join(', ') || '(none)'}</span>
+            {#if r.built_in}<span class="text-[10px] text-text-secondary bg-border px-1.5 py-px rounded">built-in</span>{/if}
+            <button class="text-xs text-text-secondary hover:text-text bg-none border-none cursor-pointer px-1" onclick={() => { editingRoleId = editingRoleId === r.id ? null : r.id; }}>edit</button>
+            {#if !r.built_in}
+              <button class="text-xs text-text-secondary hover:!text-[var(--importance-high)] bg-none border-none cursor-pointer px-1" onclick={() => handleDeleteRole(r.id)}>delete</button>
+            {/if}
+          </div>
+          {#if editingRoleId === r.id}
+            <div class="pl-4 py-2 border-l-2 border-primary">
+              <div class="flex flex-wrap gap-3 mb-2">
+                {#each ACL_ACTIONS as action}
+                  <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input type="checkbox" checked={r.permissions.includes(action.id)} onchange={() => {
+                      const perms = r.permissions.includes(action.id)
+                        ? r.permissions.filter((p: string) => p !== action.id)
+                        : [...r.permissions, action.id];
+                      handleSaveRole(r.id, r.name, r.description, perms);
+                    }} />
+                    {action.label}
+                  </label>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        {/each}
+      </div>
+      <div class="border-t border-border pt-3">
+        <h4 class="text-xs font-semibold text-text-secondary uppercase mb-2">Create Role</h4>
+        <div class="flex gap-2 items-end flex-wrap">
+          <input type="text" bind:value={newRoleName} placeholder="Role name" class="text-xs py-1 px-2 w-32" />
+          <input type="text" bind:value={newRoleDesc} placeholder="Description" class="text-xs py-1 px-2 flex-1" />
+        </div>
+        <div class="flex flex-wrap gap-3 mt-2 mb-2">
+          {#each ACL_ACTIONS as action}
+            <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+              <input type="checkbox" checked={newRolePerms.has(action.id)} onchange={() => {
+                const next = new Set(newRolePerms);
+                if (next.has(action.id)) next.delete(action.id); else next.add(action.id);
+                newRolePerms = next;
+              }} />
+              {action.label}
+            </label>
+          {/each}
+        </div>
+        <button class="bg-primary text-white text-xs py-1 px-3 font-semibold disabled:opacity-50" onclick={handleCreateRole} disabled={creatingRole || !newRoleName.trim()}>
+          {creatingRole ? 'Creating...' : 'Create Role'}
         </button>
       </div>
     </div>
@@ -233,12 +333,12 @@
     <td class="py-2 px-3.5 border-b border-border text-[13px] align-middle">
       <select
         class="text-xs py-1 px-2 bg-bg border border-border rounded w-full"
-        value={user.role || 'member'}
+        value={user.role_id ?? ''}
         onchange={(e) => handleSetRole(user, (e.target as HTMLSelectElement).value)}
       >
-        <option value="admin">Admin</option>
-        <option value="member">Member</option>
-        <option value="viewer">Viewer</option>
+        {#each roles as r (r.id)}
+          <option value={r.id}>{r.name}</option>
+        {/each}
       </select>
     </td>
     <td class="py-2 px-3.5 border-b border-border text-[13px] align-middle text-right whitespace-nowrap">

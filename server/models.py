@@ -28,7 +28,31 @@ class UserResponse(BaseModel):
     display_name: str
     report_to: int | None
     role: str | None = None
+    role_id: int | None = None
     disabled: int = 0
+
+
+# --- Role models ---
+
+
+class RoleCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    description: str = ""
+    permissions: list[str] = []
+
+
+class RoleUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    permissions: list[str] | None = None
+
+
+class RoleResponse(BaseModel):
+    id: int
+    name: str
+    description: str
+    built_in: int = 0
+    permissions: list[str] = []
 
 
 # --- Token models ---

@@ -64,6 +64,8 @@ class TestInitDb:
             "access_tokens",
             "board_permissions",
             "task_access_log",
+            "roles",
+            "role_permissions",
         }
         assert tables == expected
 
@@ -83,7 +85,7 @@ class TestInitDb:
 class TestSchema:
     def test_users_table_columns(self, db):
         cols = {row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()}
-        assert cols == {"id", "external_id", "username", "display_name", "report_to", "role", "disabled"}
+        assert cols == {"id", "external_id", "username", "display_name", "report_to", "role", "role_id", "disabled"}
 
     def test_users_external_id_unique(self, db):
         db.execute(

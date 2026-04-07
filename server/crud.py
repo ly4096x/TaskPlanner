@@ -61,7 +61,7 @@ def delete_user(conn: sqlite3.Connection, user_id: int) -> bool:
     return cur.rowcount > 0
 
 
-_USER_UPDATE_WHITELIST = {"external_id", "username", "display_name", "report_to", "role", "disabled"}
+_USER_UPDATE_WHITELIST = {"external_id", "username", "display_name", "report_to", "role", "role_id", "disabled"}
 
 
 def update_user(conn: sqlite3.Connection, user_id: int, **fields) -> dict | None:
@@ -1117,3 +1117,84 @@ def record_task_access(
         (user_id, task_id, accessed_time),
     )
     conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Roles
+# ---------------------------------------------------------------------------
+
+
+def list_roles(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute("SELECT * FROM roles ORDER BY id").fetchall()
+    roles = []
+    for r in rows:
+        role = dict(r)
+        perms = conn.execute(
+            "SELECT action FROM role_permissions WHERE role_id = ?", (role["id"],)
+        ).fetchall()
+        role["permissions"] = [p[0] for p in perms]
+        roles.append(role)
+    return roles
+
+
+def get_role(conn: sqlite3.Connection, role_id: int) -> dict | None:
+    row = conn.execute("SELECT * FROM roles WHERE id = ?", (role_id,)).fetchone()
+    if row is None:
+        return None
+    role = dict(row)
+    perms = conn.execute(
+        "SELECT action FROM role_permissions WHERE role_id = ?", (role_id,)
+    ).fetchall()
+    role["permissions"] = [p[0] for p in perms]
+    return role
+
+
+def create_role(
+    conn: sqlite3.Connection, name: str, description: str = "", permissions: list[str] | None = None
+) -> dict:
+    cur = conn.execute(
+        "INSERT INTO roles (name, description) VALUES (?, ?)", (name, description)
+    )
+    role_id = cur.lastrowid
+    if permissions:
+        for action in permissions:
+            conn.execute(
+                "INSERT INTO role_permissions (role_id, action) VALUES (?, ?)", (role_id, action)
+            )
+    conn.commit()
+    return get_role(conn, role_id)  # type: ignore
+
+
+def update_role(
+    conn: sqlite3.Connection, role_id: int, name: str | None = None,
+    description: str | None = None, permissions: list[str] | None = None
+) -> dict | None:
+    role = get_role(conn, role_id)
+    if role is None:
+        return None
+    if name is not None:
+        conn.execute("UPDATE roles SET name = ? WHERE id = ?", (name, role_id))
+    if description is not None:
+        conn.execute("UPDATE roles SET description = ? WHERE id = ?", (description, role_id))
+    if permissions is not None:
+        conn.execute("DELETE FROM role_permissions WHERE role_id = ?", (role_id,))
+        for action in permissions:
+            conn.execute(
+                "INSERT INTO role_permissions (role_id, action) VALUES (?, ?)", (role_id, action)
+            )
+    conn.commit()
+    return get_role(conn, role_id)
+
+
+def delete_role(conn: sqlite3.Connection, role_id: int) -> bool:
+    role = get_role(conn, role_id)
+    if role is None:
+        return False
+    if role.get("built_in"):
+        raise ValueError("Cannot delete built-in role")
+    count = conn.execute("SELECT COUNT(*) FROM users WHERE role_id = ?", (role_id,)).fetchone()[0]
+    if count > 0:
+        raise ValueError(f"Cannot delete role: {count} user(s) still assigned")
+    conn.execute("DELETE FROM roles WHERE id = ?", (role_id,))
+    conn.commit()
+    return True

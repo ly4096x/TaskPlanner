@@ -38,7 +38,9 @@ def client(db_conn):
 def admin_token(db_conn):
     """Create an admin user and return auth headers."""
     user = crud.create_user(db_conn, "admin-ext", "Admin User", username="admin")
-    crud.update_user(db_conn, user["id"], role="admin")
+    # Get the admin role_id from seeded roles
+    admin_role = db_conn.execute("SELECT id FROM roles WHERE name = 'admin'").fetchone()
+    crud.update_user(db_conn, user["id"], role="admin", role_id=admin_role[0] if admin_role else None)
     raw, token_hash = auth.generate_token()
     crud.create_access_token(db_conn, user["id"], token_hash, label="test")
     return raw

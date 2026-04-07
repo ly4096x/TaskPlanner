@@ -108,7 +108,8 @@ class TestPermissionCheck:
         from server.auth import check_permission
 
         user = crud.create_user(db, "ext1", "Admin", username="admin")
-        crud.update_user(db, user["id"], role="admin")
+        admin_rid = db.execute("SELECT id FROM roles WHERE name = 'admin'").fetchone()[0]
+        crud.update_user(db, user["id"], role="admin", role_id=admin_rid)
         board = crud.create_board(db, name="B")
         assert check_permission(db, user["id"], "admin", board["id"], "read")
         assert check_permission(db, user["id"], "admin", board["id"], "write")
@@ -118,7 +119,8 @@ class TestPermissionCheck:
         from server.auth import check_permission
 
         user = crud.create_user(db, "ext1", "Member", username="member")
-        crud.update_user(db, user["id"], role="member")
+        member_rid = db.execute("SELECT id FROM roles WHERE name = 'member'").fetchone()[0]
+        crud.update_user(db, user["id"], role="member", role_id=member_rid)
         board = crud.create_board(db, name="B")
         assert check_permission(db, user["id"], "member", board["id"], "read")
         assert check_permission(db, user["id"], "member", board["id"], "write")
@@ -128,7 +130,8 @@ class TestPermissionCheck:
         from server.auth import check_permission
 
         user = crud.create_user(db, "ext1", "Viewer", username="viewer")
-        crud.update_user(db, user["id"], role="viewer")
+        viewer_rid = db.execute("SELECT id FROM roles WHERE name = 'viewer'").fetchone()[0]
+        crud.update_user(db, user["id"], role="viewer", role_id=viewer_rid)
         board = crud.create_board(db, name="B")
         assert check_permission(db, user["id"], "viewer", board["id"], "read")
         assert not check_permission(db, user["id"], "viewer", board["id"], "write")
@@ -148,7 +151,8 @@ class TestPermissionCheck:
         from server.auth import check_permission
 
         user = crud.create_user(db, "ext1", "Viewer", username="viewer")
-        crud.update_user(db, user["id"], role="viewer")
+        viewer_rid = db.execute("SELECT id FROM roles WHERE name = 'viewer'").fetchone()[0]
+        crud.update_user(db, user["id"], role="viewer", role_id=viewer_rid)
         board = crud.create_board(db, name="B")
         crud.set_board_permission(db, user["id"], board["id"], "write")
         assert check_permission(db, user["id"], "viewer", board["id"], "write")
@@ -158,7 +162,8 @@ class TestPermissionCheck:
         from server.auth import check_permission
 
         user = crud.create_user(db, "ext1", "Member", username="member")
-        crud.update_user(db, user["id"], role="member")
+        member_rid = db.execute("SELECT id FROM roles WHERE name = 'member'").fetchone()[0]
+        crud.update_user(db, user["id"], role="member", role_id=member_rid)
         board = crud.create_board(db, name="B")
         crud.set_board_permission(db, user["id"], board["id"], "none")
         assert not check_permission(db, user["id"], "member", board["id"], "read")

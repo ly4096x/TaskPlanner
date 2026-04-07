@@ -1011,12 +1011,12 @@ class TestRoleCrud:
         updated = crud.update_user(db, user["id"], role="admin")
         assert updated["role"] == "admin"
 
-    def test_set_invalid_role_raises(self, db):
+    def test_set_invalid_role_id_raises(self, db):
         import sqlite3
 
         user = crud.create_user(db, "ext1", "Alice", username="alice")
         with pytest.raises(sqlite3.IntegrityError):
-            db.execute("UPDATE users SET role = 'superadmin' WHERE id = ?", (user["id"],))
+            db.execute("UPDATE users SET role_id = 9999 WHERE id = ?", (user["id"],))
             db.commit()
 
     def test_default_role_is_null(self, db):

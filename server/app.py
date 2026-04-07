@@ -79,14 +79,14 @@ def require_auth(user: dict | None = Depends(get_current_user)) -> dict:
     return user
 
 
-def require_admin(user: dict = Depends(require_auth)) -> dict:
-    if (user.get("role") or "member") != "admin":
+def require_admin(user: dict = Depends(require_auth), conn: sqlite3.Connection = Depends(get_db)) -> dict:
+    if not auth.has_permission(conn, user, "users.manage"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 
-def require_admin_or_member(user: dict = Depends(require_auth)) -> dict:
-    if (user.get("role") or "member") not in ("admin", "member"):
+def require_admin_or_member(user: dict = Depends(require_auth), conn: sqlite3.Connection = Depends(get_db)) -> dict:
+    if not auth.has_permission(conn, user, "boards.write"):
         raise HTTPException(status_code=403, detail="Admin or member access required")
     return user
 
@@ -163,6 +163,68 @@ def revoke_token(
         raise HTTPException(status_code=403, detail="Can only revoke tokens for yourself or as admin")
     if not crud.revoke_access_token(conn, token_id):
         raise HTTPException(status_code=404, detail="Token not found")
+    return {"ok": True}
+
+
+# --- Role routes ---
+
+
+@app.get("/api/v1/roles", response_model=list[models.RoleResponse])
+def list_roles(user: dict = Depends(require_auth), conn: sqlite3.Connection = Depends(get_db)):
+    return crud.list_roles(conn)
+
+
+@app.get("/api/v1/roles/{role_id}", response_model=models.RoleResponse)
+def get_role(role_id: int, user: dict = Depends(require_auth), conn: sqlite3.Connection = Depends(get_db)):
+    role = crud.get_role(conn, role_id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Role not found")
+    return role
+
+
+@app.post("/api/v1/roles", response_model=models.RoleResponse, status_code=201)
+def create_role(
+    body: models.RoleCreate,
+    user: dict = Depends(require_admin),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    from server.db import ACL_ACTIONS
+
+    invalid = set(body.permissions) - ACL_ACTIONS
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"Invalid permissions: {invalid}")
+    try:
+        return crud.create_role(conn, body.name, body.description, body.permissions)
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@app.post("/api/v1/roles/{role_id}", response_model=models.RoleResponse)
+def update_role(
+    role_id: int,
+    body: models.RoleUpdate,
+    user: dict = Depends(require_admin),
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    from server.db import ACL_ACTIONS
+
+    if body.permissions is not None:
+        invalid = set(body.permissions) - ACL_ACTIONS
+        if invalid:
+            raise HTTPException(status_code=422, detail=f"Invalid permissions: {invalid}")
+    result = crud.update_role(conn, role_id, body.name, body.description, body.permissions)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Role not found")
+    return result
+
+
+@app.delete("/api/v1/roles/{role_id}")
+def delete_role(role_id: int, user: dict = Depends(require_admin), conn: sqlite3.Connection = Depends(get_db)):
+    try:
+        if not crud.delete_role(conn, role_id):
+            raise HTTPException(status_code=404, detail="Role not found")
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return {"ok": True}
 
 

@@ -23,6 +23,9 @@ export interface User {
   username: string | null;
   display_name: string;
   report_to: number | null;
+  role: string | null;
+  role_id: number | null;
+  disabled: number;
 }
 
 export type CommentType = 'TEXT' | 'METADATA_CHANGE' | 'EXECUTION_LOG';
@@ -285,6 +288,40 @@ export async function listTokens(userId: number): Promise<TokenInfo[]> {
 
 export async function revokeToken(userId: number, tokenId: number): Promise<void> {
   await request(`/api/v1/users/${userId}/tokens/${tokenId}/revoke`, { method: 'POST' });
+}
+
+// --- Role API ---
+
+export interface Role {
+  id: number;
+  name: string;
+  description: string;
+  built_in: number;
+  permissions: string[];
+}
+
+export const ACL_ACTIONS = [
+  { id: 'boards.read', label: 'View boards' },
+  { id: 'boards.write', label: 'Create/edit boards' },
+  { id: 'tasks.read', label: 'View tasks & comments' },
+  { id: 'tasks.write', label: 'Create/edit tasks, comment, upload' },
+  { id: 'users.manage', label: 'Manage users & roles' },
+];
+
+export async function listRoles(): Promise<Role[]> {
+  return request<Role[]>('/api/v1/roles');
+}
+
+export async function createRoleApi(data: { name: string; description?: string; permissions: string[] }): Promise<Role> {
+  return request<Role>('/api/v1/roles', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function editRoleApi(id: number, data: { name?: string; description?: string; permissions?: string[] }): Promise<Role> {
+  return request<Role>(`/api/v1/roles/${id}`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function deleteRoleApi(id: number): Promise<void> {
+  await request(`/api/v1/roles/${id}`, { method: 'DELETE' });
 }
 
 // --- Attachment API ---

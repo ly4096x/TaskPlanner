@@ -8,7 +8,15 @@ from pathlib import Path
 from server.schema import COMMENT_TYPES, STATUSES  # pyright: ignore[reportMissingImports]
 
 # Current schema version
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
+
+ACL_ACTIONS = frozenset({
+    "boards.read",
+    "boards.write",
+    "tasks.read",
+    "tasks.write",
+    "users.manage",
+})
 
 _status_check = ", ".join(f"'{s}'" for s in STATUSES)
 _comment_type_check = ", ".join(f"'{c}'" for c in COMMENT_TYPES)
@@ -27,7 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT NOT NULL UNIQUE,
     display_name TEXT NOT NULL,
     report_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    role TEXT DEFAULT NULL CHECK (role IN ('admin', 'member', 'viewer')),
+    role TEXT DEFAULT NULL,
+    role_id INTEGER REFERENCES roles(id) ON DELETE SET NULL,
     disabled INTEGER NOT NULL DEFAULT 0
 );
 
@@ -112,6 +121,19 @@ CREATE TABLE IF NOT EXISTS board_permissions (
     board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
     permission TEXT NOT NULL CHECK (permission IN ('none', 'read', 'write')),
     UNIQUE (user_id, board_id)
+);
+
+CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT NOT NULL DEFAULT '',
+    built_in INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    action TEXT NOT NULL,
+    PRIMARY KEY (role_id, action)
 );
 
 CREATE TABLE IF NOT EXISTS task_access_log (
@@ -262,11 +284,63 @@ def _migrate_to_v15(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_to_v16(conn: sqlite3.Connection) -> None:
+    """Add custom roles system: roles table, role_permissions table, role_id on users."""
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+
+    if "roles" not in tables:
+        conn.executescript("""
+            CREATE TABLE roles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT NOT NULL DEFAULT '',
+                built_in INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE role_permissions (
+                role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                action TEXT NOT NULL,
+                PRIMARY KEY (role_id, action)
+            );
+        """)
+
+    # Seed built-in roles
+    for name, desc, perms in [
+        ("admin", "Full access", ["boards.read", "boards.write", "tasks.read", "tasks.write", "users.manage"]),
+        ("member", "Read and write tasks/boards", ["boards.read", "boards.write", "tasks.read", "tasks.write"]),
+        ("viewer", "Read-only access", ["boards.read", "tasks.read"]),
+    ]:
+        conn.execute("INSERT OR IGNORE INTO roles (name, description, built_in) VALUES (?, ?, 1)", (name, desc))
+        role_row = conn.execute("SELECT id FROM roles WHERE name = ?", (name,)).fetchone()
+        if role_row:
+            for action in perms:
+                conn.execute(
+                    "INSERT OR IGNORE INTO role_permissions (role_id, action) VALUES (?, ?)",
+                    (role_row[0], action),
+                )
+
+    # Add role_id column to users
+    user_cols = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "role_id" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN role_id INTEGER REFERENCES roles(id) ON DELETE SET NULL")
+
+    # Populate role_id from existing role text column
+    conn.execute("""
+        UPDATE users SET role_id = (SELECT id FROM roles WHERE name = users.role)
+        WHERE role IS NOT NULL AND role_id IS NULL
+    """)
+    conn.execute("""
+        UPDATE users SET role_id = (SELECT id FROM roles WHERE name = 'member')
+        WHERE role_id IS NULL
+    """)
+    conn.commit()
+
+
 _MIGRATIONS = {
     12: _migrate_to_v12,
     13: _migrate_to_v13,
     14: _migrate_to_v14,
     15: _migrate_to_v15,
+    16: _migrate_to_v16,
 }
 
 
