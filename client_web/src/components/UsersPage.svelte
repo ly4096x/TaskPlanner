@@ -238,15 +238,19 @@
           <div class="flex items-center gap-3 py-1.5 px-2 bg-bg rounded text-sm">
             <span class="font-semibold min-w-[80px]">{r.name}</span>
             <span class="text-text-secondary text-xs flex-1">{r.permissions.join(', ') || '(none)'}</span>
-            {#if r.built_in}<span class="text-[10px] text-text-secondary bg-border px-1.5 py-px rounded">built-in</span>{/if}
-            <button class="text-xs text-text-secondary hover:text-text bg-none border-none cursor-pointer px-1" onclick={() => { editingRoleId = editingRoleId === r.id ? null : r.id; }}>edit</button>
+            {#if r.built_in && r.name === 'admin'}<span class="text-[10px] text-text-secondary bg-border px-1.5 py-px rounded">built-in</span>
+            {:else}
+              <button class="text-xs text-text-secondary hover:text-text bg-none border-none cursor-pointer px-1" onclick={() => { editingRoleId = editingRoleId === r.id ? null : r.id; }}>edit</button>
+            {/if}
             {#if !r.built_in}
               <button class="text-xs text-text-secondary hover:!text-[var(--importance-high)] bg-none border-none cursor-pointer px-1" onclick={() => handleDeleteRole(r.id)}>delete</button>
             {/if}
           </div>
-          {#if editingRoleId === r.id}
+          {#if editingRoleId === r.id && !(r.built_in && r.name === 'admin')}
             <div class="pl-4 py-2 border-l-2 border-primary">
-              <div class="flex flex-wrap gap-3 mb-2">
+              <!-- Default permissions (global + all-boards default) -->
+              <h5 class="text-[11px] font-semibold uppercase text-text-secondary mb-1">Default permissions</h5>
+              <div class="flex flex-wrap gap-3 mb-3">
                 {#each ACL_ACTIONS as action}
                   <label class="flex items-center gap-1.5 text-xs cursor-pointer">
                     <input type="checkbox" checked={r.permissions.includes(action.id)} onchange={() => {
@@ -259,6 +263,60 @@
                   </label>
                 {/each}
               </div>
+
+              <!-- Per-board overrides matrix -->
+              {#if allBoards.length > 0}
+                <h5 class="text-[11px] font-semibold uppercase text-text-secondary mb-1">Per-board overrides <span class="font-normal normal-case">(overrides defaults for that board)</span></h5>
+                <div class="overflow-x-auto">
+                  <table class="text-xs border-collapse">
+                    <thead>
+                      <tr>
+                        <th class="text-left py-1 px-2 text-text-secondary font-semibold">Board</th>
+                        {#each BOARD_ACL_ACTIONS as action}
+                          <th class="py-1 px-2 text-text-secondary font-semibold text-center whitespace-nowrap">{action.label}</th>
+                        {/each}
+                        <th class="py-1 px-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each allBoards as board (board.id)}
+                        {@const bp = r.board_permissions.find((b: {board_id: number}) => b.board_id === board.id)}
+                        <tr class="{bp ? 'bg-[color-mix(in_srgb,var(--color-primary)_5%,var(--color-bg))]' : ''}">
+                          <td class="py-1 px-2 font-medium">{board.name}</td>
+                          {#each BOARD_ACL_ACTIONS as action}
+                            <td class="py-1 px-2 text-center">
+                              {#if bp}
+                                <input type="checkbox" checked={bp.actions.includes(action.id)} onchange={() => {
+                                  const newActions = bp.actions.includes(action.id)
+                                    ? bp.actions.filter((a: string) => a !== action.id)
+                                    : [...bp.actions, action.id];
+                                  const newBp = newActions.length > 0
+                                    ? r.board_permissions.map((b: {board_id: number, actions: string[]}) => b.board_id === board.id ? {...b, actions: newActions} : b)
+                                    : r.board_permissions.filter((b: {board_id: number}) => b.board_id !== board.id);
+                                  editRoleApi(r.id, { board_permissions: newBp }).then(() => loadRoles());
+                                }} />
+                              {:else}
+                                <input type="checkbox" checked={false} onchange={() => {
+                                  const newBp = [...r.board_permissions, {board_id: board.id, actions: [action.id]}];
+                                  editRoleApi(r.id, { board_permissions: newBp }).then(() => loadRoles());
+                                }} />
+                              {/if}
+                            </td>
+                          {/each}
+                          <td class="py-1 px-2">
+                            {#if bp}
+                              <button class="text-[10px] text-text-secondary hover:text-text bg-none border-none cursor-pointer" onclick={() => {
+                                const newBp = r.board_permissions.filter((b: {board_id: number}) => b.board_id !== board.id);
+                                editRoleApi(r.id, { board_permissions: newBp }).then(() => loadRoles());
+                              }}>clear</button>
+                            {/if}
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/if}
             </div>
           {/if}
         {/each}
