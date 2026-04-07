@@ -8,15 +8,11 @@ from pathlib import Path
 from server.schema import COMMENT_TYPES, STATUSES  # pyright: ignore[reportMissingImports]
 
 # Current schema version
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
-ACL_ACTIONS = frozenset({
-    "boards.read",
-    "boards.write",
-    "tasks.read",
-    "tasks.write",
-    "users.manage",
-})
+GLOBAL_ACL_ACTIONS = frozenset({"boards.create", "users.manage", "users.create_direct_report", "users.edit"})
+BOARD_ACL_ACTIONS = frozenset({"boards.read", "boards.write", "tasks.read", "tasks.write", "tasks.post_comment"})
+ACL_ACTIONS = GLOBAL_ACL_ACTIONS | BOARD_ACL_ACTIONS
 
 _status_check = ", ".join(f"'{s}'" for s in STATUSES)
 _comment_type_check = ", ".join(f"'{c}'" for c in COMMENT_TYPES)
@@ -115,13 +111,6 @@ CREATE TABLE IF NOT EXISTS access_tokens (
     last_used_time REAL
 );
 
-CREATE TABLE IF NOT EXISTS board_permissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
-    permission TEXT NOT NULL CHECK (permission IN ('none', 'read', 'write')),
-    UNIQUE (user_id, board_id)
-);
 
 CREATE TABLE IF NOT EXISTS roles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,7 +122,7 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE TABLE IF NOT EXISTS role_permissions (
     role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     action TEXT NOT NULL,
-    PRIMARY KEY (role_id, action)
+    board_id INTEGER REFERENCES boards(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS task_access_log (
@@ -148,6 +137,8 @@ CREATE INDEX IF NOT EXISTS idx_attachments_task_id ON attachments(task_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_comment_id ON attachments(comment_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id);
 CREATE INDEX IF NOT EXISTS idx_access_tokens_token_hash ON access_tokens(token_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_role_perms_default ON role_permissions(role_id, action) WHERE board_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_role_perms_board ON role_permissions(role_id, action, board_id) WHERE board_id IS NOT NULL;
 """
 
 
@@ -296,10 +287,10 @@ def _migrate_to_v16(conn: sqlite3.Connection) -> None:
                 description TEXT NOT NULL DEFAULT '',
                 built_in INTEGER NOT NULL DEFAULT 0
             );
-            CREATE TABLE role_permissions (
+            CREATE TABLE IF NOT EXISTS role_permissions (
                 role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
                 action TEXT NOT NULL,
-                PRIMARY KEY (role_id, action)
+                board_id INTEGER REFERENCES boards(id) ON DELETE CASCADE
             );
         """)
 
@@ -314,7 +305,7 @@ def _migrate_to_v16(conn: sqlite3.Connection) -> None:
         if role_row:
             for action in perms:
                 conn.execute(
-                    "INSERT OR IGNORE INTO role_permissions (role_id, action) VALUES (?, ?)",
+                    "INSERT OR IGNORE INTO role_permissions (role_id, action, board_id) VALUES (?, ?, NULL)",
                     (role_row[0], action),
                 )
 
@@ -335,12 +326,72 @@ def _migrate_to_v16(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_to_v17(conn: sqlite3.Connection) -> None:
+    """Per-board role permissions: add board_id to role_permissions, drop board_permissions."""
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+
+    # Check if role_permissions already has board_id (fresh DB or already migrated)
+    rp_cols = set()
+    if "role_permissions" in tables:
+        rp_cols = {row[1] for row in conn.execute("PRAGMA table_info(role_permissions)").fetchall()}
+
+    needs_table_migration = "role_permissions" in tables and "board_id" not in rp_cols
+
+    # 1. Rename old role_permissions (only if it needs migration)
+    if needs_table_migration and "role_permissions_old" not in tables:
+        conn.execute("ALTER TABLE role_permissions RENAME TO role_permissions_old")
+
+    # 2. Create new table if needed
+    if needs_table_migration:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS role_permissions (
+                role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                action TEXT NOT NULL,
+                board_id INTEGER REFERENCES boards(id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_role_perms_default
+                ON role_permissions(role_id, action) WHERE board_id IS NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_role_perms_board
+                ON role_permissions(role_id, action, board_id) WHERE board_id IS NOT NULL;
+        """)
+
+        # 3. Copy old rows as defaults
+        conn.execute("""
+            INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+            SELECT role_id, action, NULL FROM role_permissions_old
+        """)
+
+        # 4. Add boards.create to roles that had boards.write
+        conn.execute("""
+            INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+            SELECT role_id, 'boards.create', NULL FROM role_permissions
+            WHERE action = 'boards.write' AND board_id IS NULL
+        """)
+
+    # 7. Drop old table
+    conn.execute("DROP TABLE IF EXISTS role_permissions_old")
+
+    # 5. Unassign users from member/viewer, then delete those roles
+    # (role_permissions rows cascade-delete via FK)
+    for role_name in ("member", "viewer"):
+        role_row = conn.execute("SELECT id FROM roles WHERE name = ?", (role_name,)).fetchone()
+        if role_row:
+            conn.execute("UPDATE users SET role_id = NULL WHERE role_id = ?", (role_row[0],))
+            conn.execute("DELETE FROM roles WHERE id = ?", (role_row[0],))
+
+    # 6. Drop board_permissions table
+    conn.execute("DROP TABLE IF EXISTS board_permissions")
+
+    conn.commit()
+
+
 _MIGRATIONS = {
     12: _migrate_to_v12,
     13: _migrate_to_v13,
     14: _migrate_to_v14,
     15: _migrate_to_v15,
     16: _migrate_to_v16,
+    17: _migrate_to_v17,
 }
 
 

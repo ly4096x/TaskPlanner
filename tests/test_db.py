@@ -62,7 +62,6 @@ class TestInitDb:
             "_schema_version",
             "attachments",
             "access_tokens",
-            "board_permissions",
             "task_access_log",
             "roles",
             "role_permissions",
@@ -339,15 +338,6 @@ class TestSchema:
             ).fetchall()
         }
         assert "access_tokens" in tables
-
-    def test_board_permissions_table_exists(self, db):
-        tables = {
-            row[0]
-            for row in db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
-        assert "board_permissions" in tables
 
     def test_task_access_log_table_exists(self, db):
         tables = {

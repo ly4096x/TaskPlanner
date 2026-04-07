@@ -1024,35 +1024,7 @@ class TestRoleCrud:
         assert user.get("role") is None
 
 
-class TestBoardPermissionCrud:
-    def test_set_and_get(self, db):
-        user = crud.create_user(db, "ext1", "Alice", username="alice")
-        board = crud.create_board(db, name="B")
-        crud.set_board_permission(db, user["id"], board["id"], "write")
-        perm = crud.get_board_permission(db, user["id"], board["id"])
-        assert perm == "write"
-
-    def test_get_default_returns_none(self, db):
-        user = crud.create_user(db, "ext1", "Alice", username="alice")
-        board = crud.create_board(db, name="B")
-        perm = crud.get_board_permission(db, user["id"], board["id"])
-        assert perm is None
-
-    def test_list_board_permissions(self, db):
-        user = crud.create_user(db, "ext1", "Alice", username="alice")
-        board = crud.create_board(db, name="B")
-        crud.set_board_permission(db, user["id"], board["id"], "read")
-        perms = crud.list_board_permissions(db, board["id"])
-        assert len(perms) == 1
-        assert perms[0]["permission"] == "read"
-
-    def test_update_existing(self, db):
-        user = crud.create_user(db, "ext1", "Alice", username="alice")
-        board = crud.create_board(db, name="B")
-        crud.set_board_permission(db, user["id"], board["id"], "read")
-        crud.set_board_permission(db, user["id"], board["id"], "write")
-        perm = crud.get_board_permission(db, user["id"], board["id"])
-        assert perm == "write"
+  # TestBoardPermissionCrud removed — board_permissions table dropped in v17
 
 
 class TestUserDisabled:
