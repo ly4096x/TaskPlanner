@@ -35,16 +35,23 @@ class UserResponse(BaseModel):
 # --- Role models ---
 
 
+class RoleBoardPermission(BaseModel):
+    board_id: int
+    actions: list[str]
+
+
 class RoleCreate(BaseModel):
     name: str = Field(min_length=1, max_length=50)
     description: str = ""
-    permissions: list[str] = []
+    permissions: list[str] = []  # default (all-boards) actions
+    board_permissions: list[RoleBoardPermission] = []  # per-board overrides
 
 
 class RoleUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
-    permissions: list[str] | None = None
+    permissions: list[str] | None = None  # default actions
+    board_permissions: list[RoleBoardPermission] | None = None  # per-board overrides
 
 
 class RoleResponse(BaseModel):
@@ -52,7 +59,8 @@ class RoleResponse(BaseModel):
     name: str
     description: str
     built_in: int = 0
-    permissions: list[str] = []
+    permissions: list[str] = []  # defaults
+    board_permissions: list[RoleBoardPermission] = []  # per-board
 
 
 # --- Token models ---
@@ -82,9 +90,6 @@ class TokenListResponse(BaseModel):
 # --- Board Permission models ---
 
 
-class BoardPermissionUpdate(BaseModel):
-    user_id: int
-    permission: str  # none, read, write
 
 
 # --- Board models ---

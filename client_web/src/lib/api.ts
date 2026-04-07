@@ -292,21 +292,36 @@ export async function revokeToken(userId: number, tokenId: number): Promise<void
 
 // --- Role API ---
 
+export interface RoleBoardPermission {
+  board_id: number;
+  actions: string[];
+}
+
 export interface Role {
   id: number;
   name: string;
   description: string;
   built_in: number;
   permissions: string[];
+  board_permissions: RoleBoardPermission[];
 }
 
-export const ACL_ACTIONS = [
-  { id: 'boards.read', label: 'View boards' },
-  { id: 'boards.write', label: 'Create/edit boards' },
-  { id: 'tasks.read', label: 'View tasks & comments' },
-  { id: 'tasks.write', label: 'Create/edit tasks, comment, upload' },
+export const GLOBAL_ACL_ACTIONS = [
+  { id: 'boards.create', label: 'Create boards' },
   { id: 'users.manage', label: 'Manage users & roles' },
+  { id: 'users.create_direct_report', label: 'Create direct reports' },
+  { id: 'users.edit', label: 'Edit direct reports' },
 ];
+
+export const BOARD_ACL_ACTIONS = [
+  { id: 'boards.read', label: 'View board' },
+  { id: 'boards.write', label: 'Edit board' },
+  { id: 'tasks.read', label: 'View tasks & comments' },
+  { id: 'tasks.write', label: 'Create/edit tasks' },
+  { id: 'tasks.post_comment', label: 'Post comments' },
+];
+
+export const ACL_ACTIONS = [...GLOBAL_ACL_ACTIONS, ...BOARD_ACL_ACTIONS];
 
 export async function listRoles(): Promise<Role[]> {
   return request<Role[]>('/api/v1/roles');

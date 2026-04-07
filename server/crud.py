@@ -1035,39 +1035,7 @@ def revoke_access_token(conn: sqlite3.Connection, token_id: int) -> bool:
     return cur.rowcount > 0
 
 
-# ---------------------------------------------------------------------------
-# Board Permissions
-# ---------------------------------------------------------------------------
-
-
-def set_board_permission(
-    conn: sqlite3.Connection, user_id: int, board_id: int, permission: str
-) -> None:
-    conn.execute(
-        "INSERT INTO board_permissions (user_id, board_id, permission) VALUES (?, ?, ?) "
-        "ON CONFLICT (user_id, board_id) DO UPDATE SET permission = excluded.permission",
-        (user_id, board_id, permission),
-    )
-    conn.commit()
-
-
-def get_board_permission(
-    conn: sqlite3.Connection, user_id: int, board_id: int
-) -> str | None:
-    row = conn.execute(
-        "SELECT permission FROM board_permissions WHERE user_id = ? AND board_id = ?",
-        (user_id, board_id),
-    ).fetchone()
-    return row[0] if row else None
-
-
-def list_board_permissions(conn: sqlite3.Connection, board_id: int) -> list[dict]:
-    rows = conn.execute(
-        "SELECT bp.*, u.username, u.display_name FROM board_permissions bp "
-        "JOIN users u ON bp.user_id = u.id WHERE bp.board_id = ? ORDER BY bp.id",
-        (board_id,),
-    ).fetchall()
-    return [dict(r) for r in rows]
+# Board Permissions removed — replaced by per-board role permissions in v17
 
 
 # ---------------------------------------------------------------------------
@@ -1124,33 +1092,41 @@ def record_task_access(
 # ---------------------------------------------------------------------------
 
 
+def _enrich_role(conn: sqlite3.Connection, role: dict) -> dict:
+    """Add permissions and board_permissions to a role dict."""
+    role_id = role["id"]
+    # Default permissions (board_id IS NULL)
+    default_rows = conn.execute(
+        "SELECT action FROM role_permissions WHERE role_id = ? AND board_id IS NULL", (role_id,)
+    ).fetchall()
+    role["permissions"] = [r[0] for r in default_rows]
+    # Per-board permissions
+    board_rows = conn.execute(
+        "SELECT board_id, action FROM role_permissions WHERE role_id = ? AND board_id IS NOT NULL ORDER BY board_id",
+        (role_id,),
+    ).fetchall()
+    board_perms: dict[int, list[str]] = {}
+    for r in board_rows:
+        board_perms.setdefault(r[0], []).append(r[1])
+    role["board_permissions"] = [{"board_id": bid, "actions": acts} for bid, acts in board_perms.items()]
+    return role
+
+
 def list_roles(conn: sqlite3.Connection) -> list[dict]:
     rows = conn.execute("SELECT * FROM roles ORDER BY id").fetchall()
-    roles = []
-    for r in rows:
-        role = dict(r)
-        perms = conn.execute(
-            "SELECT action FROM role_permissions WHERE role_id = ?", (role["id"],)
-        ).fetchall()
-        role["permissions"] = [p[0] for p in perms]
-        roles.append(role)
-    return roles
+    return [_enrich_role(conn, dict(r)) for r in rows]
 
 
 def get_role(conn: sqlite3.Connection, role_id: int) -> dict | None:
     row = conn.execute("SELECT * FROM roles WHERE id = ?", (role_id,)).fetchone()
     if row is None:
         return None
-    role = dict(row)
-    perms = conn.execute(
-        "SELECT action FROM role_permissions WHERE role_id = ?", (role_id,)
-    ).fetchall()
-    role["permissions"] = [p[0] for p in perms]
-    return role
+    return _enrich_role(conn, dict(row))
 
 
 def create_role(
-    conn: sqlite3.Connection, name: str, description: str = "", permissions: list[str] | None = None
+    conn: sqlite3.Connection, name: str, description: str = "",
+    permissions: list[str] | None = None, board_permissions: list[dict] | None = None,
 ) -> dict:
     cur = conn.execute(
         "INSERT INTO roles (name, description) VALUES (?, ?)", (name, description)
@@ -1159,29 +1135,50 @@ def create_role(
     if permissions:
         for action in permissions:
             conn.execute(
-                "INSERT INTO role_permissions (role_id, action) VALUES (?, ?)", (role_id, action)
+                "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, ?, NULL)",
+                (role_id, action),
             )
+    if board_permissions:
+        for bp in board_permissions:
+            for action in bp.get("actions", []):
+                conn.execute(
+                    "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, ?, ?)",
+                    (role_id, action, bp["board_id"]),
+                )
     conn.commit()
     return get_role(conn, role_id)  # type: ignore
 
 
 def update_role(
     conn: sqlite3.Connection, role_id: int, name: str | None = None,
-    description: str | None = None, permissions: list[str] | None = None
+    description: str | None = None, permissions: list[str] | None = None,
+    board_permissions: list[dict] | None = None,
 ) -> dict | None:
     role = get_role(conn, role_id)
     if role is None:
         return None
+    # Block edits to admin
+    if role.get("built_in") and role.get("name") == "admin":
+        raise ValueError("Cannot edit the admin role")
     if name is not None:
         conn.execute("UPDATE roles SET name = ? WHERE id = ?", (name, role_id))
     if description is not None:
         conn.execute("UPDATE roles SET description = ? WHERE id = ?", (description, role_id))
     if permissions is not None:
-        conn.execute("DELETE FROM role_permissions WHERE role_id = ?", (role_id,))
+        conn.execute("DELETE FROM role_permissions WHERE role_id = ? AND board_id IS NULL", (role_id,))
         for action in permissions:
             conn.execute(
-                "INSERT INTO role_permissions (role_id, action) VALUES (?, ?)", (role_id, action)
+                "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, ?, NULL)",
+                (role_id, action),
             )
+    if board_permissions is not None:
+        conn.execute("DELETE FROM role_permissions WHERE role_id = ? AND board_id IS NOT NULL", (role_id,))
+        for bp in board_permissions:
+            for action in bp.get("actions", []):
+                conn.execute(
+                    "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, ?, ?)",
+                    (role_id, action, bp["board_id"]),
+                )
     conn.commit()
     return get_role(conn, role_id)
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { listUsers, createUser, editUser, createToken, listTokens, revokeToken, listRoles, createRoleApi, editRoleApi, deleteRoleApi, ACL_ACTIONS, type User, type TokenInfo, type TokenCreated, type Role } from '../lib/api';
+  import { listUsers, listBoards, createUser, editUser, createToken, listTokens, revokeToken, listRoles, createRoleApi, editRoleApi, deleteRoleApi, GLOBAL_ACL_ACTIONS, BOARD_ACL_ACTIONS, ACL_ACTIONS, type User, type TokenInfo, type TokenCreated, type Role, type Board } from '../lib/api';
   import { Icon, ChevronDown } from 'svelte-hero-icons';
 
   interface Props {
@@ -26,6 +26,9 @@
   let createdToken = $state<string | null>(null);
   let tokenLoading = $state(false);
 
+  // Boards (for per-board permission editing)
+  let allBoards = $state<Board[]>([]);
+
   // Roles
   let roles = $state<Role[]>([]);
   let showRoles = $state(false);
@@ -37,6 +40,7 @@
 
   async function loadRoles() {
     try { roles = await listRoles(); } catch { roles = []; }
+    try { allBoards = await listBoards(true); } catch { allBoards = []; }
   }
 
   async function handleCreateRole() {

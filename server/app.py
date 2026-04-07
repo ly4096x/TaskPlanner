@@ -194,7 +194,8 @@ def create_role(
     if invalid:
         raise HTTPException(status_code=422, detail=f"Invalid permissions: {invalid}")
     try:
-        return crud.create_role(conn, body.name, body.description, body.permissions)
+        bp = [p.model_dump() for p in body.board_permissions] if body.board_permissions else None
+        return crud.create_role(conn, body.name, body.description, body.permissions, bp)
     except Exception as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -212,7 +213,11 @@ def update_role(
         invalid = set(body.permissions) - ACL_ACTIONS
         if invalid:
             raise HTTPException(status_code=422, detail=f"Invalid permissions: {invalid}")
-    result = crud.update_role(conn, role_id, body.name, body.description, body.permissions)
+    bp = [p.model_dump() for p in body.board_permissions] if body.board_permissions is not None else None
+    try:
+        result = crud.update_role(conn, role_id, body.name, body.description, body.permissions, bp)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     if result is None:
         raise HTTPException(status_code=404, detail="Role not found")
     return result

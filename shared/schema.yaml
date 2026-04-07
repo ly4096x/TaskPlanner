@@ -39,14 +39,22 @@ transition_conditions:
     no_drag: true
 
 roles:
-  - admin
-  - member
-  - viewer
+  built_in:
+    - admin  # hardcoded full access, not editable
+  # member and viewer removed — create custom roles instead
 
-permissions:
-  - none
-  - read
-  - write
+acl_actions:
+  global:
+    - boards.create
+    - users.manage
+    - users.create_direct_report
+    - users.edit
+  per_board:
+    - boards.read
+    - boards.write
+    - tasks.read
+    - tasks.write
+    - tasks.post_comment
 
 comment_types:
   - TEXT
