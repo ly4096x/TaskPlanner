@@ -113,13 +113,6 @@
         {/each}
       </tr>
     </thead>
-    {#if selected.size > 0}
-      <div class="absolute top-0 left-10 right-0 h-9 flex items-center px-4 gap-3 bg-[color-mix(in_srgb,var(--color-primary)_10%,var(--color-bg))] border-b-2 border-primary z-0">
-        <span class="text-sm text-primary font-semibold">{selected.size} selected</span>
-        <button class="text-xs py-1 px-3 bg-primary text-white rounded font-semibold" onclick={handleBatchMarkRead}>Mark as Read</button>
-        <button class="text-xs py-1 px-3 bg-bg text-text-secondary rounded" onclick={clearSelection}>Clear</button>
-      </div>
-    {/if}
     <tbody>
       {#each tasks as task (task.id)}
         <tr onclick={() => onselect(task)} class="cursor-pointer transition-[background] duration-100 hover:bg-bg {selected.has(task.id) ? '!bg-[color-mix(in_srgb,var(--color-primary)_8%,var(--color-surface))]' : ''}">
@@ -159,6 +152,13 @@
       {/if}
     </tbody>
   </table>
+  {#if selected.size > 0}
+    <div class="absolute top-0 left-10 right-0 h-9 flex items-center px-4 gap-3 bg-[color-mix(in_srgb,var(--color-primary)_10%,var(--color-bg))] border-b-2 border-primary z-0">
+      <span class="text-sm text-primary font-semibold">{selected.size} selected</span>
+      <button class="text-xs py-1 px-3 bg-primary text-white rounded font-semibold" onclick={handleBatchMarkRead}>Mark as Read</button>
+      <button class="text-xs py-1 px-3 bg-bg text-text-secondary rounded" onclick={clearSelection}>Clear</button>
+    </div>
+  {/if}
 </div>
 
 <style>

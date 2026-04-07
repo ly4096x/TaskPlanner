@@ -220,7 +220,9 @@
   loadSubtasks();
   loadParent();
   // Mark task as read (logs access time server-side)
-  fetchTask(boardId, task.id).catch(() => {});
+  $effect(() => {
+    fetchTask(boardId, task.id).catch(() => {});
+  });
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->

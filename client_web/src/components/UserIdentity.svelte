@@ -79,7 +79,7 @@
         </button>
       {:else}
         <div class="flex flex-col gap-2">
-          <label class="text-xs text-text-secondary font-semibold">Access Token</label>
+          <label class="text-xs text-text-secondary font-semibold flex flex-col gap-2">Access Token
           <input
             type="password"
             bind:value={tokenInput}
@@ -87,6 +87,7 @@
             class="text-sm"
             onkeydown={(e) => { if (e.key === 'Enter') tryAuth(); }}
           />
+          </label>
           {#if error}
             <p class="text-xs text-[color:var(--importance-high)] m-0">{error}</p>
           {/if}
