@@ -2,9 +2,10 @@
 """Build TaskPlanner CLI binary using Nuitka.
 
 Usage:
-  nix build -o dist/cli             # NixOS (standalone, via flake.nix)
-  uv run python build/build_cli.py  # Other Linux (onefile, needs patchelf, gcc, python3-dev)
-  python build/build_cli.py --no-onefile  # Standalone dir instead of single file
+  uv run python build/build_cli.py              # Onefile binary (for CI / release)
+  uv run python build/build_cli.py --no-onefile  # Standalone dir (for development)
+
+Requires: gcc, patchelf, python3-dev
 """
 
 import subprocess
