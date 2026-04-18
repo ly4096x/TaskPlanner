@@ -205,7 +205,7 @@ def add_task(ctx, title, description, assignee, importance, effort, tags, blocke
     "-f",
     "filter_expr",
     default=None,
-    help="Filter expression, default filter shows open task for current user.",
+    help="Filter expression (default excludes CANCELLED and NOT_REPRODUCIBLE).",
 )
 @click.option(
     "--limit", "-L", "limit", type=int, default=100, help="Max tasks to show, 0 to show all"

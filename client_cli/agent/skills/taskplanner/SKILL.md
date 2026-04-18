@@ -21,10 +21,11 @@ TaskPlanner edit <id> --status STARTED        # edit task fields
 TaskPlanner add-comment <id> -m "text"        # add comment
 TaskPlanner add-comment <id> -m "text" -f file.png  # comment with attachment
 TaskPlanner list-users                        # list users
+TaskPlanner show-user --username "..."        # show user info (or --agent-session-id)
 TaskPlanner list-boards                       # list boards
 TaskPlanner show-board <id>                   # show board details
 TaskPlanner create-board --name "..."         # create board
-TaskPlanner add-user --username "..." --display-name "..."  # create user
+TaskPlanner add-user --username "..." --display-name "..." --external-id "..."  # create user
 TaskPlanner watch                             # watch for SSE events
 TaskPlanner watch --stop                      # stop running watcher
 ```
