@@ -65,6 +65,16 @@ _USER_UPDATE_WHITELIST = {"external_id", "username", "display_name", "report_to"
 
 
 def update_user(conn: sqlite3.Connection, user_id: int, **fields) -> dict | None:
+    # If 'role' is set without 'role_id', resolve role name → id so ACL checks see it.
+    if fields.get("role") is not None and not fields.get("role_id"):
+        row = conn.execute(
+            "SELECT id FROM roles WHERE name = ?", (fields["role"],)
+        ).fetchone()
+        if row:
+            fields["role_id"] = row[0]
+    # Drop the legacy 'role' text column write — the users table CHECK constraint
+    # only permits ('admin','member','viewer'), and role_id is now authoritative.
+    fields.pop("role", None)
     sets = []
     vals = []
     for k, v in fields.items():

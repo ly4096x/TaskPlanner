@@ -18,6 +18,7 @@ class UserUpdate(BaseModel):
     display_name: str | None = None
     report_to: str | None = None  # username
     role: str | None = None
+    role_id: int | None = None
     disabled: int | None = None
 
 

@@ -1,6 +1,8 @@
 """Claude Code hook command and helper functions."""
 
 import json
+import os
+from pathlib import Path
 
 import click
 import httpx
@@ -10,6 +12,33 @@ from client_cli.cli import get_board_id
 from client_cli.helpers import (
     get_server_url,
 )
+
+
+def _hook_export_env(pairs: dict) -> None:
+    """Append/replace export lines in CLAUDE_ENV_FILE so the agent's shell inherits them."""
+    env_file = os.environ.get("CLAUDE_ENV_FILE")
+    if not env_file or not pairs:
+        return
+    path = Path(env_file)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing: dict[str, str] = {}
+        order: list[str] = []
+        if path.exists():
+            for raw in path.read_text().splitlines():
+                line = raw.strip()
+                if line.startswith("export ") and "=" in line:
+                    key = line.removeprefix("export ").split("=", 1)[0].strip()
+                    if key not in existing:
+                        order.append(key)
+                    existing[key] = line
+        for k, v in pairs.items():
+            if k not in existing:
+                order.append(k)
+            existing[k] = f"export {k}={v}"
+        path.write_text("\n".join(existing[k] for k in order) + "\n")
+    except OSError:
+        pass
 
 
 def register(cli):
@@ -93,8 +122,21 @@ def _hook_resolve_user(url, headers, session_id, agent_id):
     return None
 
 
+def _hook_mint_token(url, headers, user_id, label):
+    """Mint a fresh access token for user_id. Returns raw token string or None."""
+    resp = _hook_api_post(f"{url}/api/v1/users/{user_id}/tokens", headers, {"label": label})
+    if resp and "token" in resp:
+        return resp["token"]
+    return None
+
+
 def _hook_get_or_create_user(url, headers, session_id, agent_id):
-    """Get or create agent user. Returns user dict or None."""
+    """Get or create agent user. Returns user dict or None.
+
+    Newly created agent users are assigned the built-in 'member' role so their
+    minted tokens can actually access boards. If the role doesn't exist or the
+    assignment endpoint isn't authorized, the user is still created.
+    """
     user = _hook_resolve_user(url, headers, session_id, agent_id)
     if user:
         return user
@@ -108,7 +150,37 @@ def _hook_get_or_create_user(url, headers, session_id, agent_id):
         main_user = _hook_resolve_user(url, headers, session_id, "main")
         if main_user:
             body["report_to"] = main_user["username"]
-    return _hook_api_post(f"{url}/api/v1/users", headers, body)
+    created = _hook_api_post(f"{url}/api/v1/users", headers, body)
+    if created and not created.get("role_id"):
+        role = _hook_ensure_agent_role(url, headers)
+        if role:
+            _hook_api_post(
+                f"{url}/api/v1/users/{created['id']}", headers,
+                {"role": role["name"], "role_id": role["id"]},
+            )
+            refreshed = _hook_api_get(f"{url}/api/v1/users/{created['id']}", headers)
+            if refreshed:
+                created = refreshed
+    return created
+
+
+def _hook_ensure_agent_role(url, headers):
+    """Find or create the 'agent' role (member-equivalent) used for hook-created users."""
+    roles = _hook_api_get(f"{url}/api/v1/roles", headers) or []
+    role = next((r for r in roles if r.get("name") == "agent"), None)
+    if role:
+        return role
+    return _hook_api_post(
+        f"{url}/api/v1/roles", headers,
+        {
+            "name": "agent",
+            "description": "Auto-assigned to Claude Code agent users",
+            "permissions": [
+                "boards.read", "boards.write",
+                "tasks.read", "tasks.write", "tasks.post_comment",
+            ],
+        },
+    )
 
 
 def _hook_get_agent_tasks(url, headers, board_id, user_id, filter_expr=None, limit=None):
@@ -159,17 +231,29 @@ def claude_hook(ctx, event):
     elif event == "Stop":
         _handle_stop(ctx, url, headers, data, session_id, agent_id)
     elif event == "SubagentStart":
-        _hook_get_or_create_user(url, headers, session_id, agent_id)
+        user = _hook_get_or_create_user(url, headers, session_id, agent_id)
+        if user:
+            exports = {"TASKPLANNER_USERNAME": user["username"]}
+            tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
+            if tok:
+                exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
+            _hook_export_env(exports)
     # Unknown events silently pass through
 
 
 def _handle_session_start(ctx, url, headers, data, session_id, agent_id):
-    """SessionStart: create agent user, show pending tasks."""
+    """SessionStart: create agent user, export username + token, show pending tasks."""
     user = _hook_get_or_create_user(url, headers, session_id, agent_id)
     if not user:
         return
 
     username = user.get("username", "")
+    exports = {"TASKPLANNER_USERNAME": username}
+    tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
+    if tok:
+        exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
+    _hook_export_env(exports)
+
     board = ctx.obj.get("board")
     if not board:
         try:
