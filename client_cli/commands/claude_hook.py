@@ -116,7 +116,7 @@ def _hook_get_agent_tasks(url, headers, board_id, user_id, filter_expr=None, lim
     params = {}
     if filter_expr:
         params["filter"] = filter_expr
-    if limit is not None:
+    if limit is not None and limit > 0:
         params["limit"] = str(limit)
     try:
         qs = "&".join(f"{k}={v}" for k, v in params.items())

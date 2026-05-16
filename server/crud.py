@@ -417,7 +417,7 @@ def list_tasks(
     }
     query += f" ORDER BY {sort_clauses.get(sort_by or '', 'tasks.id')}"
 
-    if limit is not None:
+    if limit is not None and limit > 0:
         query += " LIMIT ?"
         params.append(limit)
 
