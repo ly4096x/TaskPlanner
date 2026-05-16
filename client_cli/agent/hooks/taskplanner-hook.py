@@ -34,6 +34,13 @@ def main():
     except (ValueError, TypeError):
         payload = {}
 
+    # Claude Code's hook subprocess env doesn't include AGENT_SESSION_ID, but the
+    # JSON does. Copy session_id into env so the CLI's session-env-file token
+    # fallback can find it.
+    sid = payload.get("session_id")
+    if sid and not os.environ.get("AGENT_SESSION_ID"):
+        os.environ["AGENT_SESSION_ID"] = sid
+
     # Stop and StopWatch must short-circuit when the harness is already in a stop-hook
     # cycle, otherwise asyncRewake re-fires Stop indefinitely.
     if event in ("Stop", "StopWatch") and payload.get("stop_hook_active"):

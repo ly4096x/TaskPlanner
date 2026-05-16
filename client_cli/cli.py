@@ -106,7 +106,10 @@ def _read_session_env_token() -> str | None:
     point won't reach Bash tool subprocesses via inheritance. Read it back
     here so hook-spawned CLI invocations can still authenticate.
     """
-    sid = os.environ.get("AGENT_SESSION_ID")
+    sid = (
+        os.environ.get("AGENT_SESSION_ID")
+        or os.environ.get("CLAUDE_CODE_SESSION_ID")
+    )
     if not sid:
         return None
     cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
