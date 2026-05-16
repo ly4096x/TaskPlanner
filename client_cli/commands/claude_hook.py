@@ -234,9 +234,20 @@ def claude_hook(ctx, event):
         user = _hook_get_or_create_user(url, headers, session_id, agent_id)
         if user:
             exports = {"TASKPLANNER_USERNAME": user["username"]}
-            tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
-            if tok:
-                exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
+            existing_token = os.environ.get("TASKPLANNER_USER_ACCESS_TOKEN")
+            reuse = False
+            if existing_token:
+                me = _hook_api_get(
+                    f"{url}/api/v1/auth/me",
+                    {"Authorization": f"Bearer {existing_token}"},
+                )
+                if me and me.get("id") == user["id"]:
+                    exports["TASKPLANNER_USER_ACCESS_TOKEN"] = existing_token
+                    reuse = True
+            if not reuse:
+                tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
+                if tok:
+                    exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
             _hook_export_env(exports)
     # Unknown events silently pass through
 
@@ -249,9 +260,19 @@ def _handle_session_start(ctx, url, headers, data, session_id, agent_id):
 
     username = user.get("username", "")
     exports = {"TASKPLANNER_USERNAME": username}
-    tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
-    if tok:
-        exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
+    # If the env already has a working token, reuse it (task #323) — avoids
+    # accumulating per-session tokens when the user supplied a long-lived one.
+    existing_token = os.environ.get("TASKPLANNER_USER_ACCESS_TOKEN")
+    reuse = False
+    if existing_token:
+        me = _hook_api_get(f"{url}/api/v1/auth/me", {"Authorization": f"Bearer {existing_token}"})
+        if me and me.get("id") == user["id"]:
+            exports["TASKPLANNER_USER_ACCESS_TOKEN"] = existing_token
+            reuse = True
+    if not reuse:
+        tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
+        if tok:
+            exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
     _hook_export_env(exports)
 
     board = ctx.obj.get("board")

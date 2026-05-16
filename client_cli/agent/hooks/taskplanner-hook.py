@@ -29,15 +29,39 @@ def main():
     mode = sys.argv[1]
     event = MODE_MAP.get(mode, mode)
     stdin_data = sys.stdin.read()
+    try:
+        payload = json.loads(stdin_data or "{}")
+    except (ValueError, TypeError):
+        payload = {}
 
     # Stop and StopWatch must short-circuit when the harness is already in a stop-hook
     # cycle, otherwise asyncRewake re-fires Stop indefinitely.
-    if event in ("Stop", "StopWatch"):
+    if event in ("Stop", "StopWatch") and payload.get("stop_hook_active"):
+        sys.exit(0)
+
+    # The watch loop is long-running (SSE) so it must NOT go through claude-hook's
+    # 30s subprocess timeout. Invoke `TaskPlanner watch` directly with the current
+    # session id; it exits with code 2 when an actionable task arrives (signaling
+    # asyncRewake) or 0 when stopped.
+    if event == "StopWatch":
+        session_id = payload.get("session_id") or ""
+        # Replace any prior watcher for this session before starting a new one.
+        if session_id:
+            try:
+                subprocess.run(
+                    [CLI, "watch", "--stop", "--session-id", session_id],
+                    capture_output=True, text=True, timeout=10,
+                )
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+        args = [CLI, "watch"]
+        if session_id:
+            args += ["--session-id", session_id]
         try:
-            if json.loads(stdin_data or "{}").get("stop_hook_active"):
-                sys.exit(0)
-        except (ValueError, TypeError):
-            pass
+            os.execvp(args[0], args)
+        except FileNotFoundError:
+            print(f"taskplanner-hook: CLI not found at {CLI}", file=sys.stderr)
+            sys.exit(0)
 
     try:
         result = subprocess.run(
