@@ -89,9 +89,43 @@ def cli(ctx, server, board, user_access_token):
     url = server or os.environ.get("TASKPLANNER_SERVER", "http://localhost:8000")
     ctx.obj["server"] = url.rstrip("/")
     ctx.obj["board"] = board
-    token = user_access_token or os.environ.get("TASKPLANNER_USER_ACCESS_TOKEN")
+    token = (
+        user_access_token
+        or os.environ.get("TASKPLANNER_USER_ACCESS_TOKEN")
+        or _read_session_env_token()
+    )
     ctx.obj["token"] = token
     ctx.obj["user"] = None  # deprecated, kept for compat
+
+
+def _read_session_env_token() -> str | None:
+    """Fallback: read TASKPLANNER_USER_ACCESS_TOKEN from Claude Code's session-env file.
+
+    Claude Code locks the agent's environment at session start, so a token
+    written to ~/.claude/session-env/<sid>/sessionstart-hook-*.sh after that
+    point won't reach Bash tool subprocesses via inheritance. Read it back
+    here so hook-spawned CLI invocations can still authenticate.
+    """
+    sid = os.environ.get("AGENT_SESSION_ID")
+    if not sid:
+        return None
+    cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    try:
+        from pathlib import Path
+
+        d = Path(cfg) / "session-env" / sid
+        if not d.is_dir():
+            return None
+        for f in sorted(d.glob("sessionstart-hook-*.sh")):
+            for raw in f.read_text().splitlines():
+                line = raw.strip()
+                if line.startswith("export TASKPLANNER_USER_ACCESS_TOKEN="):
+                    val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    if val:
+                        return val
+    except OSError:
+        pass
+    return None
 
 
 # Register all command modules
