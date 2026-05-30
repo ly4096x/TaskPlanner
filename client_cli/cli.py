@@ -9,6 +9,7 @@ import os
 import click
 import httpx  # noqa: F401 — tests patch client_cli.cli.httpx
 
+from shared import __version__
 from client_cli.helpers import (  # noqa: F401
     _authed_get,
     _authed_post,
@@ -75,6 +76,7 @@ def get_board_id(ctx: click.Context) -> int:
 
 
 @click.group()
+@click.version_option(__version__, "--version", "-V", prog_name="TaskPlanner")
 @click.option("--server", "-s", default=None, help="Server URL (default: http://localhost:8000)")
 @click.option(
     "--board", "-b", type=int, default=None, help="Board ID (or set TASKPLANNER_BOARD_ID in .env)"

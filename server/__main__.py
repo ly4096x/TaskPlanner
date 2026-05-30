@@ -11,6 +11,8 @@ import sys
 
 import uvicorn
 
+from shared import __version__
+
 
 def bootstrap_admin(data_dir: str, username: str) -> None:
     """Create or promote a user to admin and generate their initial access token."""
@@ -41,6 +43,11 @@ def bootstrap_admin(data_dir: str, username: str) -> None:
 
 
 def main():
+    # Top-level --version / -V short-circuits both subcommands
+    if len(sys.argv) >= 2 and sys.argv[1] in ("--version", "-V"):
+        print(f"TaskPlannerServer {__version__}")
+        return
+
     # Check for bootstrap-admin subcommand manually to avoid argparse conflicts
     if len(sys.argv) >= 2 and sys.argv[1] == "bootstrap-admin":
         parser = argparse.ArgumentParser(description="Bootstrap admin user")
@@ -51,11 +58,15 @@ def main():
         bootstrap_admin(args.data_dir, args.username)
     else:
         parser = argparse.ArgumentParser(description="TaskPlanner API server")
+        parser.add_argument(
+            "--version", "-V", action="version", version=f"TaskPlannerServer {__version__}",
+        )
         parser.add_argument("data_dir", help="Runtime data directory (DB, uploads)")
         parser.add_argument("--host", default="::1", help="Bind host (default: [::1])")
         parser.add_argument("--port", type=int, default=8000, help="Bind port (default: 8000)")
         args = parser.parse_args()
         os.environ["TASKPLANNER_DATA_DIR"] = args.data_dir
+        print(f"TaskPlannerServer {__version__} — host={args.host} port={args.port} data_dir={args.data_dir}", flush=True)
         uvicorn.run("server.app:app", host=args.host, port=args.port, timeout_graceful_shutdown=2)
 
 

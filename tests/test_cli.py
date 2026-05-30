@@ -24,6 +24,17 @@ def runner():
     return CliRunner()
 
 
+class TestCliVersion:
+    @pytest.mark.parametrize("flag", ["--version", "-V"])
+    def test_prints_version(self, runner, flag):
+        from shared import __version__
+
+        result = runner.invoke(cli, [flag])
+        assert result.exit_code == 0
+        assert __version__ in result.output
+        assert "TaskPlanner" in result.output
+
+
 # --- Helpers to build mock httpx responses ---
 
 
