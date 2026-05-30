@@ -45,13 +45,21 @@ def create_user(
     }
 
 
+_USER_SELECT = """
+    SELECT u.id, u.external_id, u.username, u.display_name, u.report_to,
+           u.role_id, u.disabled,
+           COALESCE(r.name, u.role) AS role
+    FROM users u LEFT JOIN roles r ON u.role_id = r.id
+"""
+
+
 def get_user(conn: sqlite3.Connection, user_id: int) -> dict | None:
-    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    row = conn.execute(f"{_USER_SELECT} WHERE u.id = ?", (user_id,)).fetchone()
     return _row_to_dict(row)
 
 
 def list_users(conn: sqlite3.Connection) -> list[dict]:
-    rows = conn.execute("SELECT * FROM users ORDER BY id").fetchall()
+    rows = conn.execute(f"{_USER_SELECT} ORDER BY u.id").fetchall()
     return [dict(r) for r in rows]
 
 
