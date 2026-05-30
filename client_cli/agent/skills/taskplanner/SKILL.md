@@ -39,14 +39,50 @@ TaskPlanner add-task --title TEXT [--description TEXT] [--assignee USERNAME]
 
 ### edit options
 ```
-TaskPlanner edit TASK_ID [--status STATUS] [--assignee USERNAME]
+TaskPlanner edit TASK_ID [--status STATUS] [--reason TEXT] [--assignee USERNAME]
     [--title TEXT] [--description TEXT] [--importance 0-100]
     [--effort INT] [--parent TASK_ID]  # use --parent 0 to clear
 ```
 
+`--reason` is the status-change comment. Non-admin users **must** supply it
+when transitioning to `DONE`, `WAITING_FOR_COMMAND_EXECUTION`,
+`NOT_REPRODUCIBLE`, or `CANCELLED`; the server records it as a comment.
+
 ### add-comment options
 ```
 TaskPlanner add-comment TASK_ID -m TEXT [-f FILE]... [-t TEXT|EXECUTION_LOG]
+```
+
+## Markdown formatting (descriptions, comments, status reasons)
+
+Task **descriptions**, **comments** (`add-comment -m`), and status
+**reasons** (`edit --reason`) are rendered as **Markdown** in the web UI.
+When you write these as an agent, prefer structured Markdown over a single
+plain line — it makes the task board legible to humans.
+
+- Use headings (`##`), bullet lists, fenced code blocks for code/logs, and
+  inline `` `code` `` for symbols and paths.
+- For shell commands or stack traces, wrap in ``` ```bash ``` / ``` ``` ```
+  fences so they render as code, not prose.
+- Reference task IDs as `#123` and file locations as `path/to/file.py:42`.
+- Keep the first line a short summary (it shows in list views), then break
+  into sections.
+
+In your shell, pass multi-line Markdown via a heredoc so newlines survive
+quoting, e.g.:
+
+```bash
+TaskPlanner add-comment 42 -m "$(cat <<'EOF'
+## Findings
+
+- Root cause: stale cache in `server/auth.py:120`
+- Fix landed in commit `abc1234`
+
+```text
+ERROR: signature mismatch
+```
+EOF
+)"
 ```
 
 ### list options

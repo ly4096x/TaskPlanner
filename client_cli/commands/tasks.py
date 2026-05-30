@@ -161,7 +161,7 @@ def print_task_detail(url: str, board: int, task: dict, show_attachments: bool =
 
 @click.command("add-task")
 @click.option("--title", required=True, help="Task title")
-@click.option("--description", default="", help="Task description")
+@click.option("--description", default="", help="Task description (Markdown supported; prefer multi-line structured content over a single line)")
 @click.option("--assignee", default=None, type=str, help="Assignee username")
 @click.option("--importance", default=0, type=int, help="Importance 0-100")
 @click.option("--effort", default=0, type=int, help="Estimated effort >= 0")
@@ -301,10 +301,10 @@ def show_task(ctx, task_id, template):
 @click.argument("task_id", type=int)
 @click.option("--status", default=None, type=click.Choice(VALID_STATUSES), help="Set status")
 @click.option("--reason", "status_reason", default=None, type=str,
-              help="Status change comment (required for non-admin when setting DONE/WAITING_FOR_COMMAND_EXECUTION/NOT_REPRODUCIBLE/CANCELLED)")
+              help="Status change comment, Markdown supported (required for non-admin when setting DONE/WAITING_FOR_COMMAND_EXECUTION/NOT_REPRODUCIBLE/CANCELLED)")
 @click.option("--assignee", default=None, type=str, help="Assign to user (username)")
 @click.option("--title", default=None, help="Set title")
-@click.option("--description", default=None, help="Set description")
+@click.option("--description", default=None, help="Set description (Markdown supported; prefer multi-line structured content over a single line)")
 @click.option("--importance", default=None, type=int, help="Set importance 0-100")
 @click.option("--effort", default=None, type=int, help="Set estimated effort")
 @click.option("--parent", "parent_task_id", default=None, type=int, help="Set parent task ID (0 to clear)")
@@ -368,7 +368,7 @@ def edit_task_cmd(ctx, task_id, status, status_reason, assignee, title, descript
 
 @click.command("add-comment")
 @click.argument("task_id", type=int)
-@click.option("--message", "-m", required=True, help="Comment text")
+@click.option("--message", "-m", required=True, help="Comment text (Markdown supported; prefer multi-line structured content over a single line)")
 @click.option("--file", "-f", "files", multiple=True, type=click.Path(exists=True), help="File(s) to attach")
 @click.option("--type", "-t", "comment_type", default="TEXT", type=click.Choice(["TEXT", "EXECUTION_LOG"], case_sensitive=False), help="Comment type")
 @click.pass_context
