@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 CLI = os.path.expanduser("~/.local/bin/TaskPlanner")
+CRED_FILE = os.path.expanduser("~/.claude/taskplanner.env")
 
 MODE_MAP = {
     "start": "SessionStart",
@@ -19,6 +20,30 @@ MODE_MAP = {
     "watch": "StopWatch",
     "SubagentStart": "SubagentStart",
 }
+
+
+def load_admin_credential():
+    """Backfill the privileged token from ~/.claude/taskplanner.env.
+
+    `TaskPlanner claude-hook` needs an admin token to create agent users and mint
+    their per-agent tokens. Claude Code's hook subprocess inherits the launch
+    environment, which may not carry TASKPLANNER_USER_ACCESS_TOKEN; read it from
+    the credentials file so the hook works regardless of how Claude Code was
+    launched. The token stays in this hook subprocess only — claude-hook writes
+    the agent's own (non-admin) token to CLAUDE_ENV_FILE, never the admin token."""
+    if os.environ.get("TASKPLANNER_USER_ACCESS_TOKEN"):
+        return
+    try:
+        with open(CRED_FILE) as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith("export TASKPLANNER_USER_ACCESS_TOKEN="):
+                    val = s.split("=", 1)[1].strip().strip('"').strip("'")
+                    if val:
+                        os.environ["TASKPLANNER_USER_ACCESS_TOKEN"] = val
+                    break
+    except OSError:
+        pass
 
 
 def main():
@@ -40,6 +65,9 @@ def main():
     sid = payload.get("session_id")
     if sid and not os.environ.get("AGENT_SESSION_ID"):
         os.environ["AGENT_SESSION_ID"] = sid
+
+    # Ensure an admin token is present so claude-hook can create users / mint tokens.
+    load_admin_credential()
 
     # Stop and StopWatch must short-circuit when the harness is already in a stop-hook
     # cycle, otherwise asyncRewake re-fires Stop indefinitely.
