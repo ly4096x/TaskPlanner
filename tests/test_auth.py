@@ -135,7 +135,7 @@ class TestPerBoardPermissions:
         user = self._make_user_with_role(db, "adminuser", admin_rid)
         board = crud.create_board(db, name="B")
         assert check_board_action(db, user, board["id"], "boards.read")
-        assert check_board_action(db, user, board["id"], "tasks.write")
+        assert check_board_action(db, user, board["id"], "tasks.create")
         assert check_global_action(db, user, "users.manage")
         assert check_global_action(db, user, "boards.create")
 
@@ -143,10 +143,10 @@ class TestPerBoardPermissions:
         from server import crud
         from server.auth import check_board_action
 
-        role = self._make_role_with_perms(db, "editor", ["boards.read", "tasks.read", "tasks.write"])
+        role = self._make_role_with_perms(db, "editor", ["boards.read", "tasks.read", "tasks.create"])
         user = self._make_user_with_role(db, "editoruser", role["id"])
         board = crud.create_board(db, name="B")
-        assert check_board_action(db, user, board["id"], "tasks.write")
+        assert check_board_action(db, user, board["id"], "tasks.create")
 
     def test_custom_role_default_denies_missing_action(self, db):
         from server import crud
@@ -155,7 +155,7 @@ class TestPerBoardPermissions:
         role = self._make_role_with_perms(db, "reader", ["boards.read", "tasks.read"])
         user = self._make_user_with_role(db, "readeruser", role["id"])
         board = crud.create_board(db, name="B")
-        assert not check_board_action(db, user, board["id"], "tasks.write")
+        assert not check_board_action(db, user, board["id"], "tasks.create")
 
     def test_board_override_grants_action_not_in_default(self, db):
         from server import crud
@@ -165,10 +165,10 @@ class TestPerBoardPermissions:
         # Default: read-only. Board override: also write.
         role = self._make_role_with_perms(
             db, "reader_plus", ["boards.read", "tasks.read"],
-            board_perms={board["id"]: ["boards.read", "tasks.read", "tasks.write"]},
+            board_perms={board["id"]: ["boards.read", "tasks.read", "tasks.create"]},
         )
         user = self._make_user_with_role(db, "rpuser", role["id"])
-        assert check_board_action(db, user, board["id"], "tasks.write")
+        assert check_board_action(db, user, board["id"], "tasks.create")
 
     def test_board_override_completely_replaces_default(self, db):
         from server import crud
@@ -178,28 +178,28 @@ class TestPerBoardPermissions:
         board2 = crud.create_board(db, name="B2")
         # Default: read+write. Board1 override: read-only (no write).
         role = self._make_role_with_perms(
-            db, "mixed", ["boards.read", "tasks.read", "tasks.write"],
+            db, "mixed", ["boards.read", "tasks.read", "tasks.create"],
             board_perms={board1["id"]: ["boards.read", "tasks.read"]},
         )
         user = self._make_user_with_role(db, "mixeduser", role["id"])
         # Board1: override applies (read only)
         assert check_board_action(db, user, board1["id"], "tasks.read")
-        assert not check_board_action(db, user, board1["id"], "tasks.write")
+        assert not check_board_action(db, user, board1["id"], "tasks.create")
         # Board2: default applies (read+write)
-        assert check_board_action(db, user, board2["id"], "tasks.write")
+        assert check_board_action(db, user, board2["id"], "tasks.create")
 
     def test_board_override_denies_action_in_default(self, db):
         from server import crud
         from server.auth import check_board_action
 
         board = crud.create_board(db, name="B")
-        # Default has tasks.write, but board override does NOT
+        # Default has tasks.create, but board override does NOT
         role = self._make_role_with_perms(
-            db, "restricted", ["boards.read", "tasks.read", "tasks.write"],
+            db, "restricted", ["boards.read", "tasks.read", "tasks.create"],
             board_perms={board["id"]: ["boards.read", "tasks.read"]},
         )
         user = self._make_user_with_role(db, "ruser", role["id"])
-        assert not check_board_action(db, user, board["id"], "tasks.write")
+        assert not check_board_action(db, user, board["id"], "tasks.create")
 
     def test_no_override_falls_back_to_default(self, db):
         from server import crud
@@ -210,7 +210,7 @@ class TestPerBoardPermissions:
         board = crud.create_board(db, name="B")
         # No per-board override → uses default
         assert check_board_action(db, user, board["id"], "boards.read")
-        assert not check_board_action(db, user, board["id"], "tasks.write")
+        assert not check_board_action(db, user, board["id"], "tasks.create")
 
     def test_global_action_boards_create(self, db):
         from server.auth import check_global_action
@@ -267,3 +267,23 @@ class TestPerBoardPermissions:
         user_dict = {"id": user["id"], "role_id": None}
         assert not check_board_action(db, user_dict, board["id"], "boards.read")
         assert not check_global_action(db, user_dict, "users.manage")
+
+    def test_tasks_create_and_edit_are_independent(self, db):
+        from server import crud
+        from server.auth import check_board_action
+
+        board = crud.create_board(db, name="B")
+        # Role with create but not edit
+        creator = self._make_role_with_perms(
+            db, "task_creator", ["boards.read", "tasks.read", "tasks.create"],
+        )
+        creator_user = self._make_user_with_role(db, "creator_only", creator["id"])
+        assert check_board_action(db, creator_user, board["id"], "tasks.create")
+        assert not check_board_action(db, creator_user, board["id"], "tasks.edit")
+        # Role with edit but not create
+        editor = self._make_role_with_perms(
+            db, "task_editor", ["boards.read", "tasks.read", "tasks.edit"],
+        )
+        editor_user = self._make_user_with_role(db, "editor_only", editor["id"])
+        assert not check_board_action(db, editor_user, board["id"], "tasks.create")
+        assert check_board_action(db, editor_user, board["id"], "tasks.edit")

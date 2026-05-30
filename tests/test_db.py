@@ -365,3 +365,75 @@ class TestSchema:
         db.execute("DELETE FROM boards WHERE id = 1")
         count = db.execute("SELECT COUNT(*) FROM tags").fetchone()[0]
         assert count == 0
+
+    def test_v18_admin_role_has_split_task_actions(self, db):
+        actions = {
+            row[0] for row in db.execute(
+                """
+                SELECT action FROM role_permissions
+                JOIN roles ON role_permissions.role_id = roles.id
+                WHERE roles.name = 'admin' AND board_id IS NULL
+                """
+            ).fetchall()
+        }
+        assert "tasks.create" in actions
+        assert "tasks.edit" in actions
+        assert "tasks.write" not in actions
+
+    def test_v18_migrates_existing_tasks_write(self, db):
+        from server.db import _migrate_to_v18
+
+        # Simulate a pre-v18 role that had tasks.write at both default and per-board scope.
+        import time
+        db.execute("INSERT INTO roles (name, built_in) VALUES ('legacy_writer', 0)")
+        rid = db.execute("SELECT id FROM roles WHERE name = 'legacy_writer'").fetchone()[0]
+        db.execute("INSERT INTO boards (name, created_time) VALUES ('B', ?)", (time.time(),))
+        bid = db.execute("SELECT id FROM boards WHERE name = 'B'").fetchone()[0]
+        db.execute(
+            "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'tasks.write', NULL)",
+            (rid,),
+        )
+        db.execute(
+            "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'tasks.write', ?)",
+            (rid, bid),
+        )
+        db.commit()
+
+        _migrate_to_v18(db)
+
+        rows = db.execute(
+            "SELECT action, board_id FROM role_permissions WHERE role_id = ?", (rid,),
+        ).fetchall()
+        pairs = {(r[0], r[1]) for r in rows}
+        assert ("tasks.write", None) not in pairs
+        assert ("tasks.write", bid) not in pairs
+        assert ("tasks.create", None) in pairs
+        assert ("tasks.edit", None) in pairs
+        assert ("tasks.create", bid) in pairs
+        assert ("tasks.edit", bid) in pairs
+
+    def test_v18_migrates_boards_write_to_task_actions(self, db):
+        from server.db import _migrate_to_v18
+
+        # A role with only boards.write (the legacy gate for task create/edit) should
+        # be granted the new fine-grained actions so existing custom roles don't
+        # lose capability after the split.
+        db.execute("INSERT INTO roles (name, built_in) VALUES ('legacy_editor', 0)")
+        rid = db.execute("SELECT id FROM roles WHERE name = 'legacy_editor'").fetchone()[0]
+        db.execute(
+            "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'boards.write', NULL)",
+            (rid,),
+        )
+        db.commit()
+
+        _migrate_to_v18(db)
+
+        actions = {
+            row[0] for row in db.execute(
+                "SELECT action FROM role_permissions WHERE role_id = ? AND board_id IS NULL",
+                (rid,),
+            ).fetchall()
+        }
+        assert "tasks.create" in actions
+        assert "tasks.edit" in actions
+        assert "boards.write" in actions

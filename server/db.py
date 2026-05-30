@@ -8,10 +8,13 @@ from pathlib import Path
 from server.schema import COMMENT_TYPES, STATUSES  # pyright: ignore[reportMissingImports]
 
 # Current schema version
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 GLOBAL_ACL_ACTIONS = frozenset({"boards.create", "users.manage", "users.create_direct_report", "users.edit"})
-BOARD_ACL_ACTIONS = frozenset({"boards.read", "boards.write", "tasks.read", "tasks.write", "tasks.post_comment"})
+BOARD_ACL_ACTIONS = frozenset({
+    "boards.read", "boards.write",
+    "tasks.read", "tasks.create", "tasks.edit", "tasks.post_comment",
+})
 ACL_ACTIONS = GLOBAL_ACL_ACTIONS | BOARD_ACL_ACTIONS
 
 _status_check = ", ".join(f"'{s}'" for s in STATUSES)
@@ -296,8 +299,8 @@ def _migrate_to_v16(conn: sqlite3.Connection) -> None:
 
     # Seed built-in roles
     for name, desc, perms in [
-        ("admin", "Full access", ["boards.read", "boards.write", "tasks.read", "tasks.write", "users.manage"]),
-        ("member", "Read and write tasks/boards", ["boards.read", "boards.write", "tasks.read", "tasks.write"]),
+        ("admin", "Full access", ["boards.read", "boards.write", "tasks.read", "tasks.create", "tasks.edit", "users.manage"]),
+        ("member", "Read and write tasks/boards", ["boards.read", "boards.write", "tasks.read", "tasks.create", "tasks.edit"]),
         ("viewer", "Read-only access", ["boards.read", "tasks.read"]),
     ]:
         conn.execute("INSERT OR IGNORE INTO roles (name, description, built_in) VALUES (?, ?, 1)", (name, desc))
@@ -385,6 +388,36 @@ def _migrate_to_v17(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_to_v18(conn: sqlite3.Connection) -> None:
+    """Split tasks.write into tasks.create and tasks.edit (both default and per-board scope)."""
+    # For every (role_id, board_id) that had tasks.write, insert tasks.create + tasks.edit.
+    # IS NOT DISTINCT FROM treats NULL == NULL so default-scope rows match too.
+    conn.execute("""
+        INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+        SELECT role_id, 'tasks.create', board_id FROM role_permissions
+        WHERE action = 'tasks.write'
+    """)
+    conn.execute("""
+        INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+        SELECT role_id, 'tasks.edit', board_id FROM role_permissions
+        WHERE action = 'tasks.write'
+    """)
+    # Also grant the new actions to anyone who has boards.write at the same scope,
+    # since boards.write was the legacy gate enforced for task create/edit.
+    conn.execute("""
+        INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+        SELECT role_id, 'tasks.create', board_id FROM role_permissions
+        WHERE action = 'boards.write'
+    """)
+    conn.execute("""
+        INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+        SELECT role_id, 'tasks.edit', board_id FROM role_permissions
+        WHERE action = 'boards.write'
+    """)
+    conn.execute("DELETE FROM role_permissions WHERE action = 'tasks.write'")
+    conn.commit()
+
+
 _MIGRATIONS = {
     12: _migrate_to_v12,
     13: _migrate_to_v13,
@@ -392,6 +425,7 @@ _MIGRATIONS = {
     15: _migrate_to_v15,
     16: _migrate_to_v16,
     17: _migrate_to_v17,
+    18: _migrate_to_v18,
 }
 
 

@@ -317,7 +317,8 @@ export const BOARD_ACL_ACTIONS = [
   { id: 'boards.read', label: 'View board' },
   { id: 'boards.write', label: 'Edit board' },
   { id: 'tasks.read', label: 'View tasks & comments' },
-  { id: 'tasks.write', label: 'Create/edit tasks' },
+  { id: 'tasks.create', label: 'Create tasks' },
+  { id: 'tasks.edit', label: 'Edit tasks' },
   { id: 'tasks.post_comment', label: 'Post comments' },
 ];
 

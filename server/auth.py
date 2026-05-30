@@ -63,7 +63,7 @@ def is_admin(conn: sqlite3.Connection, role_id: int) -> bool:
 
 
 def check_board_action(conn: sqlite3.Connection, user: dict, board_id: int, action: str) -> bool:
-    """Check if user can perform a per-board action (e.g. 'tasks.write' on board 3)."""
+    """Check if user can perform a per-board action (e.g. 'tasks.create' on board 3)."""
     role_id = user.get("role_id")
     if not role_id:
         return False

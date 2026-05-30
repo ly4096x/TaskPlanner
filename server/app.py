@@ -103,6 +103,12 @@ def _check_board_write(conn: sqlite3.Connection, user: dict, board_id: int) -> N
         raise HTTPException(status_code=403, detail="Write access denied for this board")
 
 
+def _check_board_action(conn: sqlite3.Connection, user: dict, board_id: int, action: str) -> None:
+    _require_board(conn, board_id)
+    if not auth.check_board_action(conn, user, board_id, action):
+        raise HTTPException(status_code=403, detail=f"Action {action!r} not permitted on this board")
+
+
 # --- Global ValueError handler ---
 
 
@@ -403,7 +409,7 @@ def create_task(
     user: dict = Depends(require_auth),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    _check_board_write(conn, user, board_id)
+    _check_board_action(conn, user, board_id, "tasks.create")
     try:
         result = crud.create_task(
             conn,
@@ -449,7 +455,7 @@ def edit_task(
     user: dict = Depends(require_auth),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    _check_board_write(conn, user, board_id)
+    _check_board_action(conn, user, board_id, "tasks.edit")
     existing = crud.get_task(conn, board_id=board_id, task_id=task_id)
     if existing is None:
         raise HTTPException(status_code=404, detail="Task not found")

@@ -177,7 +177,7 @@ def _hook_ensure_agent_role(url, headers):
             "description": "Auto-assigned to Claude Code agent users",
             "permissions": [
                 "boards.read", "boards.write",
-                "tasks.read", "tasks.write", "tasks.post_comment",
+                "tasks.read", "tasks.create", "tasks.edit", "tasks.post_comment",
             ],
         },
     )
