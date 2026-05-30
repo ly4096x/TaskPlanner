@@ -32,15 +32,15 @@ TaskPlanner watch --stop                      # stop running watcher
 
 ### add-task options
 ```
-TaskPlanner add-task --title TEXT [--description TEXT] [--assignee USERNAME]
+TaskPlanner add-task --title TEXT [--description MARKDOWN_TEXT] [--assignee USERNAME]
     [--importance 0-100] [--effort INT] [--tags TAG1,TAG2,...]
     [--blockers ID1,ID2,...] [--parent TASK_ID] [--start-now]
 ```
 
 ### edit options
 ```
-TaskPlanner edit TASK_ID [--status STATUS] [--reason TEXT] [--assignee USERNAME]
-    [--title TEXT] [--description TEXT] [--importance 0-100]
+TaskPlanner edit TASK_ID [--status STATUS] [--reason MARKDOWN_TEXT] [--assignee USERNAME]
+    [--title TEXT] [--description MARKDOWN_TEXT] [--importance 0-100]
     [--effort INT] [--parent TASK_ID]  # use --parent 0 to clear
 ```
 
@@ -50,8 +50,13 @@ when transitioning to `DONE`, `WAITING_FOR_COMMAND_EXECUTION`,
 
 ### add-comment options
 ```
-TaskPlanner add-comment TASK_ID -m TEXT [-f FILE]... [-t TEXT|EXECUTION_LOG]
+TaskPlanner add-comment TASK_ID -m MARKDOWN_TEXT [-f FILE]... [-t TEXT|EXECUTION_LOG]
 ```
+
+Wherever the help shows `MARKDOWN_TEXT` as the placeholder, the field is
+rendered as Markdown in the web UI — write structured Markdown (headings,
+bullets, fenced code), not a single plain line. See the *Markdown
+formatting* section below.
 
 ## Markdown formatting (descriptions, comments, status reasons)
 
