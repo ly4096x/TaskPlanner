@@ -109,6 +109,14 @@ def _check_board_action(conn: sqlite3.Connection, user: dict, board_id: int, act
         raise HTTPException(status_code=403, detail=f"Action {action!r} not permitted on this board")
 
 
+# Statuses that require a human-written comment when a non-admin transitions
+# the task into them. NOT_REPRODUCIBLE additionally requires a specific prefix
+# (enforced for everyone, not just non-admins).
+_STATUS_COMMENT_REQUIRED = frozenset({
+    "DONE", "WAITING_FOR_COMMAND_EXECUTION", "NOT_REPRODUCIBLE", "CANCELLED",
+})
+
+
 # --- Global ValueError handler ---
 
 
@@ -462,7 +470,10 @@ def edit_task(
 
     actor_id = user["id"]
 
-    if edit.status is not None and edit.status == "NOT_REPRODUCIBLE":
+    is_status_transition = (
+        edit.status is not None and edit.status != existing["status"]
+    )
+    if is_status_transition and edit.status == "NOT_REPRODUCIBLE":
         if not edit.status_reason or not edit.status_reason.strip().startswith(
             "Not reproducible because:"
         ):
@@ -470,7 +481,19 @@ def edit_task(
                 status_code=422,
                 detail='NOT_REPRODUCIBLE status requires status_reason starting with "Not reproducible because:"',
             )
-        crud.add_comment(conn, task_id, edit.status_reason.strip())
+    elif (
+        is_status_transition
+        and edit.status in _STATUS_COMMENT_REQUIRED
+        and not auth.is_admin(conn, user.get("role_id") or 0)
+    ):
+        if not edit.status_reason or not edit.status_reason.strip():
+            raise HTTPException(
+                status_code=422,
+                detail=f"Non-admin users must provide a status_reason comment when transitioning to {edit.status}",
+            )
+
+    if is_status_transition and edit.status_reason and edit.status_reason.strip():
+        crud.add_comment(conn, task_id, edit.status_reason.strip(), commenter_id=actor_id)
 
     try:
         result = crud.edit_task_fields(

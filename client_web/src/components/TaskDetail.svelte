@@ -151,6 +151,10 @@
       const selectedUser = users.find(u => u.id === editAssigneeId);
       const parentVal = editParentId.trim();
       const parentTaskId = parentVal === '' || parentVal === '0' ? null : parseInt(parentVal);
+      // TODO: server requires status_reason from non-admins when transitioning to
+      // DONE / WAITING_FOR_COMMAND_EXECUTION / NOT_REPRODUCIBLE / CANCELLED. The
+      // form does not yet collect a reason — the resulting 422 surfaces in saveError.
+      // Add a reason field here when the UX warrants it.
       const updated = await editTask(boardId, task.id, {
         title: editTitle,
         description: editDescription,

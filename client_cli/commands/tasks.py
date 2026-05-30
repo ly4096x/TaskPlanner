@@ -300,6 +300,8 @@ def show_task(ctx, task_id, template):
 @click.command("edit")
 @click.argument("task_id", type=int)
 @click.option("--status", default=None, type=click.Choice(VALID_STATUSES), help="Set status")
+@click.option("--reason", "status_reason", default=None, type=str,
+              help="Status change comment (required for non-admin when setting DONE/WAITING_FOR_COMMAND_EXECUTION/NOT_REPRODUCIBLE/CANCELLED)")
 @click.option("--assignee", default=None, type=str, help="Assign to user (username)")
 @click.option("--title", default=None, help="Set title")
 @click.option("--description", default=None, help="Set description")
@@ -307,13 +309,15 @@ def show_task(ctx, task_id, template):
 @click.option("--effort", default=None, type=int, help="Set estimated effort")
 @click.option("--parent", "parent_task_id", default=None, type=int, help="Set parent task ID (0 to clear)")
 @click.pass_context
-def edit_task_cmd(ctx, task_id, status, assignee, title, description, importance, effort, parent_task_id):
+def edit_task_cmd(ctx, task_id, status, status_reason, assignee, title, description, importance, effort, parent_task_id):
     """Edit a task (status, assignee, title, description, importance, effort, parent)."""
     url = get_server_url(ctx)
     board = get_board_id(ctx)
     body: dict = {}
     if status is not None:
         body["status"] = status
+    if status_reason is not None:
+        body["status_reason"] = status_reason
     if assignee is not None:
         body["assignee"] = assignee
     if title is not None:

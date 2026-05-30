@@ -78,6 +78,28 @@ def aclient(client, admin_headers):
     return AuthClient(client, admin_headers)
 
 
+@pytest.fixture
+def member_token(db_conn):
+    """Create a non-admin user with full board+task permissions and return token."""
+    role = crud.create_role(
+        db_conn, "member_test", permissions=[
+            "boards.read", "boards.write",
+            "tasks.read", "tasks.create", "tasks.edit", "tasks.post_comment",
+        ],
+    )
+    user = crud.create_user(db_conn, "member-ext", "Member User", username="member")
+    crud.update_user(db_conn, user["id"], role_id=role["id"])
+    raw, token_hash = auth.generate_token()
+    crud.create_access_token(db_conn, user["id"], token_hash, label="test")
+    return raw
+
+
+@pytest.fixture
+def member_client(client, member_token):
+    """Authenticated test client (non-admin member)."""
+    return AuthClient(client, {"Authorization": f"Bearer {member_token}"})
+
+
 def _create_board(aclient, name="Test Board", description=""):
     resp = aclient.post(
         "/api/v1/boards/new",
@@ -498,6 +520,111 @@ class TestTasks:
         assert "STATUS" in content
         assert "TITLE" in content
         assert "IMPORTANCE" in content
+
+
+# ---- Status-comment enforcement tests ----
+
+
+class TestStatusCommentRequired:
+    """Non-admin users must provide status_reason when transitioning to
+    DONE / WAITING_FOR_COMMAND_EXECUTION / NOT_REPRODUCIBLE / CANCELLED.
+    Admins are exempt for DONE/WAITING/CANCELLED; NOT_REPRODUCIBLE's prefix
+    rule still applies to everyone."""
+
+    def _setup_started_task(self, aclient):
+        import uuid
+        suffix = uuid.uuid4().hex[:8]
+        board = _create_board(aclient, name=f"B-{suffix}")
+        user = aclient.post(
+            "/api/v1/users",
+            json={
+                "external_id": f"se-{suffix}",
+                "username": f"se{suffix}",
+                "display_name": "SE",
+            },
+        ).json()
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "T", "assignee_id": user["id"]},
+        ).json()
+        aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "STARTED"},
+        )
+        return board, task
+
+    @pytest.mark.parametrize("status", ["DONE", "WAITING_FOR_COMMAND_EXECUTION", "CANCELLED"])
+    def test_non_admin_rejected_without_reason(self, aclient, member_client, status):
+        board, task = self._setup_started_task(aclient)
+        resp = member_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": status},
+        )
+        assert resp.status_code == 422
+        assert "status_reason" in resp.json()["detail"]
+
+    @pytest.mark.parametrize("status", ["DONE", "WAITING_FOR_COMMAND_EXECUTION", "CANCELLED"])
+    def test_non_admin_succeeds_with_reason(self, aclient, member_client, status):
+        board, task = self._setup_started_task(aclient)
+        resp = member_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": status, "status_reason": f"because of {status}"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == status
+        comments = member_client.get(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/comments"
+        ).json()
+        assert any(c["content"] == f"because of {status}" for c in comments)
+
+    @pytest.mark.parametrize("status", ["DONE", "WAITING_FOR_COMMAND_EXECUTION", "CANCELLED"])
+    def test_admin_succeeds_without_reason(self, aclient, status):
+        board, task = self._setup_started_task(aclient)
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": status},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == status
+
+    def test_not_reproducible_prefix_check_runs_before_transition_validator(self, aclient):
+        """The NOT_REPRODUCIBLE prefix rule applies to admins too. Even though the
+        transition graph in schema.yaml currently has no inbound edge to
+        NOT_REPRODUCIBLE, the reason-prefix check fires before the transition
+        validator, so the 422 it returns is the prefix message rather than
+        the transition error."""
+        board, task = self._setup_started_task(aclient)
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "NOT_REPRODUCIBLE", "status_reason": "just because"},
+        )
+        assert resp.status_code == 422
+        assert "Not reproducible because:" in resp.json()["detail"]
+
+    def test_idempotent_status_no_reason_required(self, aclient, member_client):
+        """Setting status to its current value is not a transition; no reason needed."""
+        board, task = self._setup_started_task(aclient)
+        # member moves to DONE with reason
+        member_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "DONE", "status_reason": "shipped"},
+        )
+        # Editing title alone while status is DONE — no reason needed
+        resp = member_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"title": "Renamed"},
+        )
+        assert resp.status_code == 200
+
+    def test_non_comment_required_transition_does_not_need_reason(self, aclient, member_client):
+        """Transitioning STARTED → NEW (not in comment-required set) needs no reason."""
+        board, task = self._setup_started_task(aclient)
+        resp = member_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "NEW"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "NEW"
 
 
 # ---- Comment tests (now under /board/{board_id}/tasks/{id}/comments) ----
