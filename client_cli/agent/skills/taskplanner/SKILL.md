@@ -6,7 +6,16 @@ user-invocable: false
 
 # TaskPlanner CLI Reference
 
-`TaskPlanner` is installed in PATH (`~/.local/bin`). Do NOT use `uv run` to invoke it. `TASKPLANNER_USERNAME` is set automatically by the Claude Code hook — do not set it manually.
+`TaskPlanner` is installed in PATH (`~/.local/bin`). Do NOT use `uv run` to invoke it. The Claude Code hook exports `TASKPLANNER_USER_ACCESS_TOKEN` (auth) and `TASKPLANNER_USERNAME` (display) into the session — do not set them manually.
+
+## Top-level options
+
+`TaskPlanner [-s URL] [-b BOARD_ID] [-u TOKEN] [-V|--version] <command> ...`
+
+- `-s/--server URL` — server URL (default `http://localhost:8000`, or `TASKPLANNER_SERVER` env var)
+- `-b/--board ID` — board ID; **required** for board-scoped commands. Falls back to `TASKPLANNER_BOARD_ID` env var or the nearest `.env` walking up from CWD.
+- `-u/--user-access-token TOKEN` — access token (falls back to `TASKPLANNER_USER_ACCESS_TOKEN`).
+- `-V/--version` — print version and exit.
 
 ## Commands
 
@@ -15,19 +24,24 @@ TaskPlanner list                              # list tasks (default: exclude CAN
 TaskPlanner list -f "STATUS=NEW"              # filter tasks
 TaskPlanner list -L 0                         # list all (no limit)
 TaskPlanner list --format json                # JSON output
-TaskPlanner show-task <id>                    # show task detail
+TaskPlanner show-task <id>                    # show task detail (supports -T/--template)
 TaskPlanner add-task --title "..." [opts]     # create task
 TaskPlanner edit <id> --status STARTED        # edit task fields
 TaskPlanner add-comment <id> -m "text"        # add comment
 TaskPlanner add-comment <id> -m "text" -f file.png  # comment with attachment
 TaskPlanner list-users                        # list users
-TaskPlanner show-user --username "..."        # show user info (or --agent-session-id)
+TaskPlanner show-user --username "..."        # show user info (or --agent-session-id [+ --subagent-id])
 TaskPlanner list-boards                       # list boards
 TaskPlanner show-board <id>                   # show board details
-TaskPlanner create-board --name "..."         # create board
-TaskPlanner add-user --username "..." --display-name "..." --external-id "..."  # create user
-TaskPlanner watch                             # watch for SSE events
-TaskPlanner watch --stop                      # stop running watcher
+TaskPlanner create-board --name "..." [--description "..."]  # create board
+TaskPlanner add-user --username "..." --display-name "..." --external-id "..." [--report-to USER]  # create user
+TaskPlanner watch [--agent-id NAME] [--session-id ID]  # watch board for SSE events
+TaskPlanner watch --stop                      # stop running watcher for this board
+TaskPlanner whoami                            # show current authenticated user
+TaskPlanner create-token [--label TEXT] [--for-user USER]   # mint a new access token
+TaskPlanner list-tokens  [--user USER]                      # list access tokens
+TaskPlanner revoke-token <token_id>                          # revoke a token by id
+TaskPlanner set-role <username> <admin|member|viewer>        # set a user's role (admin only)
 ```
 
 ### add-task options
@@ -44,9 +58,7 @@ TaskPlanner edit TASK_ID [--status STATUS] [--reason MARKDOWN_TEXT] [--assignee 
     [--effort INT] [--parent TASK_ID]  # use --parent 0 to clear
 ```
 
-`--reason` is the status-change comment. Non-admin users **must** supply it
-when transitioning to `DONE`, `WAITING_FOR_COMMAND_EXECUTION`,
-`NOT_REPRODUCIBLE`, or `CANCELLED`; the server records it as a comment.
+See *Status transitions* below for when `--reason` is required.
 
 ### add-comment options
 ```
@@ -97,10 +109,23 @@ EOF
 
 Statuses: `NEW`, `STARTED`, `BLOCKED`, `WAITING_FOR_COMMAND_EXECUTION`, `DONE`, `NOT_REPRODUCIBLE`, `CANCELLED`.
 
+Allowed `from → to` edges (source: `shared/schema.yaml`):
+
+- `NEW → STARTED, CANCELLED`
+- `STARTED → DONE, BLOCKED, WAITING_FOR_COMMAND_EXECUTION, CANCELLED, NEW`
+- `BLOCKED → STARTED, NEW, CANCELLED`
+- `WAITING_FOR_COMMAND_EXECUTION → STARTED, NEW, CANCELLED`
+- `DONE → STARTED, NEW`
+- `NOT_REPRODUCIBLE → NEW`
+- `CANCELLED → NEW`
+
+Rules:
+
 - Non-NEW status requires an assignee first.
 - DONE can only be reached from STARTED.
-- BLOCKED requires active (non-DONE/CANCELLED) blockers.
-- NOT_REPRODUCIBLE requires a reason starting with "Not reproducible because:".
+- BLOCKED requires at least one active (non-DONE/CANCELLED) blocker.
+- NOT_REPRODUCIBLE has **no inbound edge** in the transition graph, so `edit --status NOT_REPRODUCIBLE` will be rejected. Use it as the initial status on creation, or via direct DB/admin paths; the per-transition reason rule below still applies.
+- When a non-admin transitions a task to `DONE`, `WAITING_FOR_COMMAND_EXECUTION`, `NOT_REPRODUCIBLE`, or `CANCELLED`, the server requires `--reason MARKDOWN_TEXT`; for `NOT_REPRODUCIBLE` the reason must start with `Not reproducible because:` (enforced for everyone). The reason is also recorded as a comment.
 
 ## Handing a task back to the user
 
