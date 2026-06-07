@@ -48,9 +48,24 @@ def watch(ctx, agent_id, session_id, stop_watch):
         return
     import http.client
     import json as _json
+    import os as _os
     import sys as _sys
+    import threading as _threading
     import time
     import urllib.parse
+
+    # Parent-exit watchdog. When Claude Code (our spawner) dies the kernel
+    # reparents us to init / a subreaper, so os.getppid() changes. A daemon
+    # thread polling this lets the SSE loop exit without depending on the
+    # server broadcasting watch_stop.
+    _initial_ppid = _os.getppid()
+    if _initial_ppid > 1:
+        def _parent_exit_watchdog():
+            while True:
+                time.sleep(2)
+                if _os.getppid() != _initial_ppid:
+                    _os._exit(0)
+        _threading.Thread(target=_parent_exit_watchdog, daemon=True).start()
 
     url = get_server_url(ctx)
     board = get_board_id(ctx)
