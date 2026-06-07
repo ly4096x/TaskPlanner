@@ -286,7 +286,7 @@
         </div>
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative min-h-10 text-text prose prose-sm max-w-none hover:border-primary after:content-['\270E'] after:absolute after:top-2 after:right-2 after:text-sm after:text-text-secondary after:opacity-40 after:transition-opacity after:duration-150 hover:after:opacity-80" onclick={() => editingField = 'description'}>
+        <div class="py-2 px-3 border border-dashed border-border rounded-[--radius] cursor-pointer text-[15px] transition-[border-color] duration-100 relative min-h-10 text-text prose prose-sm dark:prose-invert max-w-none hover:border-primary after:content-['\270E'] after:absolute after:top-2 after:right-2 after:text-sm after:text-text-secondary after:opacity-40 after:transition-opacity after:duration-150 hover:after:opacity-80" onclick={() => editingField = 'description'}>
           {#if editDescription}
             {@html marked.parse(editDescription)}
           {:else}
