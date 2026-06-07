@@ -9,7 +9,6 @@ import os
 import click
 import httpx  # noqa: F401 — tests patch client_cli.cli.httpx
 
-from shared import __version__
 from client_cli.helpers import (  # noqa: F401
     _authed_get,
     _authed_post,
@@ -21,6 +20,7 @@ from client_cli.helpers import (  # noqa: F401
     resolve_assignee,
     task_to_template_data,
 )
+from shared import __version__
 
 # --- Board ID resolution (re-defined here so tests can patch client_cli.cli._find_env_board_id) ---
 

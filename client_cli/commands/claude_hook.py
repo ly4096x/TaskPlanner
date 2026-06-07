@@ -362,7 +362,7 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
         else:
             _hook_deny(
                 "No tasks assigned to you. Create one first:\n"
-                f'  $ TaskPlanner add-task [--start] --title "your task" --assignee {user["username"]}'
+                f'  $ TaskPlanner add-task [--start-now] --title "your task" --assignee {user["username"]}'
             )
         return
 

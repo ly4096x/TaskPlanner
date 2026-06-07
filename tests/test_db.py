@@ -381,10 +381,10 @@ class TestSchema:
         assert "tasks.write" not in actions
 
     def test_v18_migrates_existing_tasks_write(self, db):
-        from server.db import _migrate_to_v18
-
         # Simulate a pre-v18 role that had tasks.write at both default and per-board scope.
         import time
+
+        from server.db import _migrate_to_v18
         db.execute("INSERT INTO roles (name, built_in) VALUES ('legacy_writer', 0)")
         rid = db.execute("SELECT id FROM roles WHERE name = 'legacy_writer'").fetchone()[0]
         db.execute("INSERT INTO boards (name, created_time) VALUES ('B', ?)", (time.time(),))
