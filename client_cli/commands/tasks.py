@@ -374,15 +374,20 @@ def edit_task_cmd(ctx, task_id, status, status_reason, assignee, title, descript
               help="Comment text (Markdown — prefer multi-line structured content over a single line)")
 @click.option("--file", "-f", "files", multiple=True, type=click.Path(exists=True), help="File(s) to attach")
 @click.option("--type", "-t", "comment_type", default="TEXT", type=click.Choice(["TEXT", "EXECUTION_LOG"], case_sensitive=False), help="Comment type")
+@click.option("--as-user", "as_user", default=None, metavar="USERNAME",
+              help="Post on behalf of USERNAME (admin only)")
 @click.pass_context
-def add_comment(ctx, task_id, message, files, comment_type):
+def add_comment(ctx, task_id, message, files, comment_type, as_user):
     """Add comment to task, optionally uploading file attachments."""
     url = get_server_url(ctx)
     board = get_board_id(ctx)
+    payload = {"content": message, "comment_type": comment_type.upper()}
+    if as_user:
+        payload["as_user"] = as_user
     try:
         resp = _authed_post(ctx,
             f"{url}/api/v1/board/{board}/tasks/{task_id}/new_comment",
-            json={"content": message, "comment_type": comment_type.upper()},
+            json=payload,
         )
         resp.raise_for_status()
         comment = resp.json()

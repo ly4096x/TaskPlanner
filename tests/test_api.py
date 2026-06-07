@@ -694,6 +694,51 @@ class TestComments:
         )
         assert resp.status_code == 404
 
+    def test_add_comment_as_user_admin(self, aclient, db_conn):
+        """Admin may post a comment on behalf of another user."""
+        board = _create_board(aclient)
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "As-user task"},
+        ).json()
+        # Create a target user the admin will impersonate.
+        target = crud.create_user(db_conn, "tgt-ext", "Target", username="target")
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "Posted on behalf", "as_user": "target"},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["commenter_id"] == target["id"]
+        assert data["commenter_username"] == "target"
+
+    def test_add_comment_as_user_non_admin_forbidden(self, member_client, aclient, db_conn):
+        """Non-admin caller must not be able to set as_user."""
+        board = _create_board(aclient)
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "As-user denied"},
+        ).json()
+        crud.create_user(db_conn, "victim-ext", "Victim", username="victim")
+        resp = member_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "Sneaky", "as_user": "victim"},
+        )
+        assert resp.status_code == 403
+
+    def test_add_comment_as_user_unknown(self, aclient):
+        """Admin posting with a non-existent as_user gets 400."""
+        board = _create_board(aclient)
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "As-user 400"},
+        ).json()
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "x", "as_user": "nobody"},
+        )
+        assert resp.status_code == 400
+
     def test_get_comments_task_not_found(self, aclient):
         board = _create_board(aclient)
         resp = aclient.get(f"/api/v1/board/{board['id']}/tasks/999/comments")

@@ -555,9 +555,17 @@ def add_comment(
     task = crud.get_task(conn, board_id=board_id, task_id=task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    commenter_id = user["id"]
+    if comment.as_user:
+        if not auth.is_admin(conn, user.get("role_id") or 0):
+            raise HTTPException(status_code=403, detail="Only admins may set as_user")
+        resolved = crud.resolve_username(conn, comment.as_user)
+        if resolved is None:
+            raise HTTPException(status_code=400, detail=f"User {comment.as_user!r} not found")
+        commenter_id = resolved
     result = crud.add_comment(
         conn, task_id, comment.content,
-        commenter_id=user["id"],
+        commenter_id=commenter_id,
         comment_type=comment.comment_type,
     )
     event_bus.publish(board_id, "comment_added", {"task_id": task_id, "comment": result})

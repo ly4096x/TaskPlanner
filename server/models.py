@@ -182,8 +182,7 @@ class TaskEdit(BaseModel):
 
 class CommentCreate(BaseModel):
     content: str
-    commenter_id: int | None = None
-    commenter: str | None = None  # username
+    as_user: str | None = None  # username; admin-only override of the commenter
     comment_type: str = "TEXT"
 
 

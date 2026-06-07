@@ -379,12 +379,19 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
         )
         return
 
-    # Log as comment
+    # Log as comment. The hook's headers carry the admin token (the wrapper
+    # backfills it from taskplanner.env when Claude Code's hook subprocess
+    # env doesn't have a token); use as_user so the comment is attributed
+    # to the agent, not the admin who owns the backfilled token.
     reason = description.split(ct_tag)[0].strip() or "(no description)"
     _hook_api_post(
         f"{url}/api/v1/board/{board}/tasks/{current_task['id']}/new_comment",
         headers,
-        {"content": f"[Tool:Bash] {reason}\n\n```bash\n{command}\n```", "comment_type": "EXECUTION_LOG"},
+        {
+            "content": f"[Tool:Bash] {reason}\n\n```bash\n{command}\n```",
+            "comment_type": "EXECUTION_LOG",
+            "as_user": user["username"],
+        },
     )
 
 
