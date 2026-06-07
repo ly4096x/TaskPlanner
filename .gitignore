@@ -11,5 +11,6 @@ node_modules/
 runtime_data/
 runtime_data.old/
 CLAUDE.md
+.claude/
 result
 nuitka-crash-report.xml

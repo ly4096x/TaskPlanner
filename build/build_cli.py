@@ -35,7 +35,10 @@ cmd = [
     "--nofollow-import-to=starlette",
     "--nofollow-import-to=sqlite3",
     "--python-flag=-O",
-    "client_cli/cli.py",
+    # Entry point: thin __main__.py wrapper avoids cli.py being loaded twice
+    # (once as __main__, once as client_cli.cli), which would re-enter the
+    # circular import between client_cli.cli and client_cli.commands.*.
+    "client_cli/__main__.py",
 ]
 
 if onefile:
