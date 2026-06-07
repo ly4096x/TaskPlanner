@@ -206,13 +206,13 @@ describe('listUsers', () => {
 });
 
 describe('createUser', () => {
-  it('POSTs to /api/v1/users/new', async () => {
+  it('POSTs to /api/v1/users', async () => {
     const user = { id: 1, name: 'Bob', external_id: 'bob1' };
     mockFetch.mockResolvedValue(mockResponse(user));
 
     const result = await createUser({ external_id: 'bob1', name: 'Bob' });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/v1/users/new', expect.objectContaining({
+    expect(mockFetch).toHaveBeenCalledWith('/api/v1/users', expect.objectContaining({
       method: 'POST',
       body: JSON.stringify({ external_id: 'bob1', name: 'Bob' }),
     }));
