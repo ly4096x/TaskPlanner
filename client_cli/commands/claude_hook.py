@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 
 import click
@@ -369,13 +370,17 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
     if tool_name in ("Edit", "Write"):
         return
 
-    # For Bash: require description to reference the active task
+    # For Bash: require description to reference one of the agent's STARTED tasks
     description = tool_input.get("description", "")
-    current_task = active[0]
-    ct_tag = f" Task#{current_task['id']}"
-    if not description.endswith(ct_tag):
+    match = re.search(r" Task#(\d+)$", description)
+    active_by_id = {t["id"]: t for t in active}
+    current_task = active_by_id.get(int(match.group(1))) if match else None
+    if match is None or current_task is None:
+        task_list = _hook_format_task_list(active)
         _hook_deny(
-            'Command description must reference the active task.\nAdd suffix to your description: " Task#<task_id>"'
+            "Command description must reference one of your STARTED tasks:\n"
+            f"{task_list}\n\n"
+            'Add suffix to your description: " Task#<task_id>"'
         )
         return
 
@@ -383,7 +388,7 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
     # backfills it from taskplanner.env when Claude Code's hook subprocess
     # env doesn't have a token); use as_user so the comment is attributed
     # to the agent, not the admin who owns the backfilled token.
-    reason = description.split(ct_tag)[0].strip() or "(no description)"
+    reason = description[: match.start()].strip() or "(no description)"
     _hook_api_post(
         f"{url}/api/v1/board/{board}/tasks/{current_task['id']}/new_comment",
         headers,

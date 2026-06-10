@@ -73,6 +73,75 @@ class TestClaudeHookPreToolUse:
         assert result.exit_code == 0
 
 
+class TestPreToolUseTaskMatching:
+    """Any STARTED task assigned to the agent must be a valid Task# reference
+    in a Bash description suffix — not just the first one in list order."""
+
+    TASKS = [
+        {"id": 10, "title": "parent", "status": "STARTED", "importance": 0, "assignee_id": 1},
+        {"id": 20, "title": "child", "status": "STARTED", "importance": 0, "assignee_id": 1},
+        {"id": 30, "title": "todo", "status": "NEW", "importance": 0, "assignee_id": 1},
+    ]
+
+    def _invoke(self, runner, monkeypatch, description, posted=None):
+        from client_cli.commands import claude_hook as ch
+
+        monkeypatch.setenv("TASKPLANNER_BOARD_ID", "1")
+        monkeypatch.delenv("TASKPLANNER_USER_ACCESS_TOKEN", raising=False)
+        monkeypatch.setattr(
+            ch, "_hook_resolve_user", lambda *a, **k: {"id": 1, "username": "agent_x"}
+        )
+        monkeypatch.setattr(ch, "_hook_get_agent_tasks", lambda *a, **k: list(self.TASKS))
+        if posted is None:
+            posted = []
+        monkeypatch.setattr(
+            ch,
+            "_hook_api_post",
+            lambda url, headers, json_data=None: posted.append((url, json_data)) or {},
+        )
+        data = json.dumps({
+            "session_id": "match-sess", "agent_id": "main",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo hi", "description": description},
+        })
+        return runner.invoke(cli, ["claude-hook", "PreToolUse"], input=data)
+
+    @staticmethod
+    def _decision(result):
+        assert result.exit_code == 0
+        if not result.output.strip():
+            return None
+        return json.loads(result.output).get("hookSpecificOutput", {}).get("permissionDecision")
+
+    def test_first_started_task_accepted(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing Task#10")
+        assert self._decision(result) != "deny"
+
+    def test_second_started_task_accepted(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing Task#20")
+        assert self._decision(result) != "deny"
+
+    def test_execution_log_goes_to_referenced_task(self, runner, monkeypatch):
+        posted = []
+        result = self._invoke(runner, monkeypatch, "do thing Task#20", posted)
+        assert self._decision(result) != "deny"
+        urls = [url for url, _ in posted]
+        assert any("/tasks/20/new_comment" in url for url in urls)
+        assert not any("/tasks/10/new_comment" in url for url in urls)
+
+    def test_non_started_task_reference_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing Task#30")
+        assert self._decision(result) == "deny"
+
+    def test_unknown_task_reference_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing Task#999")
+        assert self._decision(result) == "deny"
+
+    def test_missing_suffix_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing")
+        assert self._decision(result) == "deny"
+
+
 class TestClaudeHookStop:
     def test_no_user_passes(self, runner):
         """Stop with unknown session should pass through."""

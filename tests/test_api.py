@@ -770,3 +770,89 @@ class TestTags:
     def test_tags_on_nonexistent_board_404(self, aclient):
         resp = aclient.get("/api/v1/board/999/tags")
         assert resp.status_code == 404
+
+
+class TestCommentPermissions:
+    """new_comment must be gated by the granular tasks.post_comment action
+    (not legacy boards.write), and the task creator may always comment."""
+
+    # Mirrors the hook-created 'agent' role: granular task perms, no boards.write.
+    AGENT_PERMS = ["boards.read", "tasks.read", "tasks.create", "tasks.edit", "tasks.post_comment"]
+
+    def _user_client(self, client, db_conn, username, perms):
+        role = crud.create_role(db_conn, f"role_{username}", permissions=perms)
+        user = crud.create_user(db_conn, f"{username}-ext", username.title(), username=username)
+        crud.update_user(db_conn, user["id"], role_id=role["id"])
+        raw, token_hash = auth.generate_token()
+        crud.create_access_token(db_conn, user["id"], token_hash, label="test")
+        return user, AuthClient(client, {"Authorization": f"Bearer {raw}"})
+
+    def test_post_comment_allowed_without_boards_write(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="CP1")
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        _, agent_client = self._user_client(client, db_conn, "agentlike", self.AGENT_PERMS)
+        resp = agent_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "hello"},
+        )
+        assert resp.status_code == 201
+
+    def test_post_comment_denied_without_permission(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="CP2")
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        _, reader_client = self._user_client(
+            client, db_conn, "readerlike", ["boards.read", "tasks.read"]
+        )
+        resp = reader_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "nope"},
+        )
+        assert resp.status_code == 403
+
+    def test_creator_can_always_comment(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="CP3")
+        # Creator role can create tasks but has no comment permission.
+        _, creator_client = self._user_client(
+            client, db_conn, "creator1", ["boards.read", "tasks.read", "tasks.create"]
+        )
+        task = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "Mine"}
+        ).json()
+        resp = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "my own task"},
+        )
+        assert resp.status_code == 201
+
+    def test_non_creator_without_permission_denied(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="CP4")
+        _, creator_client = self._user_client(
+            client, db_conn, "creator2", ["boards.read", "tasks.read", "tasks.create"]
+        )
+        task = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "Mine"}
+        ).json()
+        _, other_client = self._user_client(
+            client, db_conn, "other2", ["boards.read", "tasks.read", "tasks.create"]
+        )
+        resp = other_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "not mine"},
+        )
+        assert resp.status_code == 403
+
+    def test_task_response_includes_creator_id(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="CP5")
+        creator, creator_client = self._user_client(
+            client, db_conn, "creator3", ["boards.read", "tasks.read", "tasks.create"]
+        )
+        task = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "Mine"}
+        ).json()
+        assert task["creator_id"] == creator["id"]
+        fetched = aclient.get(f"/api/v1/board/{board['id']}/tasks/{task['id']}").json()
+        assert fetched["creator_id"] == creator["id"]

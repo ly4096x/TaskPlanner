@@ -303,6 +303,7 @@ def create_task(
     blockers: list[int] | None = None,
     status: str = "NEW",
     parent_task_id: int | None = None,
+    creator_id: int | None = None,
 ) -> dict:
     if tags is None:
         tags = []
@@ -328,7 +329,8 @@ def create_task(
     created_time = time.time()
     cur = conn.execute(
         "INSERT INTO tasks (board_id, title, description, assignee_id, importance, "
-        "estimated_effort, created_time, status, parent_task_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "estimated_effort, created_time, status, parent_task_id, creator_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             board_id,
             title,
@@ -339,6 +341,7 @@ def create_task(
             created_time,
             status,
             parent_task_id,
+            creator_id,
         ),
     )
     task_id = cur.lastrowid

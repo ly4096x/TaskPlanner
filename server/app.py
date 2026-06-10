@@ -432,6 +432,7 @@ def create_task(
             blockers=task.blockers,
             status=task.status,
             parent_task_id=task.parent_task_id,
+            creator_id=user["id"],
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -551,8 +552,13 @@ def add_comment(
     user: dict = Depends(require_auth),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    _check_board_write(conn, user, board_id)
+    _require_board(conn, board_id)
     task = crud.get_task(conn, board_id=board_id, task_id=task_id)
+    # The task creator may always comment on their own task; everyone else
+    # needs the granular tasks.post_comment action (not legacy boards.write).
+    is_creator = task is not None and task.get("creator_id") == user["id"]
+    if not is_creator:
+        _check_board_action(conn, user, board_id, "tasks.post_comment")
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     commenter_id = user["id"]

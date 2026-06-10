@@ -8,7 +8,7 @@ from pathlib import Path
 from server.schema import COMMENT_TYPES, STATUSES  # pyright: ignore[reportMissingImports]
 
 # Current schema version
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 GLOBAL_ACL_ACTIONS = frozenset({"boards.create", "users.manage", "users.create_direct_report", "users.edit"})
 BOARD_ACL_ACTIONS = frozenset({
@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     status TEXT NOT NULL DEFAULT 'NEW'
         CHECK (status IN ({_status_check})),
     parent_task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+    creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     CHECK (parent_task_id != id)
 );
 
@@ -418,6 +419,26 @@ def _migrate_to_v18(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_to_v19(conn: sqlite3.Connection) -> None:
+    """Granular comment permission + task creator tracking.
+
+    - Grant tasks.post_comment wherever a role has boards.write (at the same
+      scope), since boards.write was the legacy gate for posting comments.
+    - Add tasks.creator_id so the task creator can always comment on it.
+    """
+    conn.execute("""
+        INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+        SELECT role_id, 'tasks.post_comment', board_id FROM role_permissions
+        WHERE action = 'boards.write'
+    """)
+    task_cols = {row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
+    if "creator_id" not in task_cols:
+        conn.execute(
+            "ALTER TABLE tasks ADD COLUMN creator_id INTEGER REFERENCES users(id) ON DELETE SET NULL"
+        )
+    conn.commit()
+
+
 _MIGRATIONS = {
     12: _migrate_to_v12,
     13: _migrate_to_v13,
@@ -426,6 +447,7 @@ _MIGRATIONS = {
     16: _migrate_to_v16,
     17: _migrate_to_v17,
     18: _migrate_to_v18,
+    19: _migrate_to_v19,
 }
 
 

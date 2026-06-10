@@ -160,6 +160,7 @@ class TaskResponse(BaseModel):
     tags: list[str]
     blockers: list[int]
     parent_task_id: int | None
+    creator_id: int | None = None
     text_comment_count: int = 0
 
 

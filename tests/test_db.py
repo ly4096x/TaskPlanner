@@ -139,6 +139,7 @@ class TestSchema:
             "status",
             "board_id",
             "parent_task_id",
+            "creator_id",
         }
         assert cols == expected
 
@@ -437,3 +438,56 @@ class TestSchema:
         assert "tasks.create" in actions
         assert "tasks.edit" in actions
         assert "boards.write" in actions
+
+    def test_v19_tasks_have_creator_id_column(self, db):
+        cols = {row[1] for row in db.execute("PRAGMA table_info(tasks)").fetchall()}
+        assert "creator_id" in cols
+
+    def test_v19_delete_user_sets_null_on_creator(self, db):
+        import time
+
+        from server import crud
+
+        board = crud.create_board(db, name="B19")
+        user = crud.create_user(db, external_id="c19", username="c19", display_name="C19")
+        db.execute(
+            "INSERT INTO tasks (board_id, title, created_time, creator_id) VALUES (?, ?, ?, ?)",
+            (board["id"], "T", time.time(), user["id"]),
+        )
+        tid = db.execute("SELECT id FROM tasks WHERE title = 'T'").fetchone()[0]
+        db.commit()
+        crud.delete_user(db, user["id"])
+        row = db.execute("SELECT creator_id FROM tasks WHERE id = ?", (tid,)).fetchone()
+        assert row[0] is None
+
+    def test_v19_migrates_boards_write_to_post_comment(self, db):
+        import time
+
+        from server.db import _migrate_to_v19
+
+        # boards.write was the legacy gate for posting comments; roles holding it
+        # (at default or per-board scope) must keep comment access after the
+        # endpoint switches to the granular tasks.post_comment action.
+        db.execute("INSERT INTO roles (name, built_in) VALUES ('legacy_commenter', 0)")
+        rid = db.execute("SELECT id FROM roles WHERE name = 'legacy_commenter'").fetchone()[0]
+        db.execute("INSERT INTO boards (name, created_time) VALUES ('B', ?)", (time.time(),))
+        bid = db.execute("SELECT id FROM boards WHERE name = 'B'").fetchone()[0]
+        db.execute(
+            "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'boards.write', NULL)",
+            (rid,),
+        )
+        db.execute(
+            "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'boards.write', ?)",
+            (rid, bid),
+        )
+        db.commit()
+
+        _migrate_to_v19(db)
+
+        pairs = {
+            (r[0], r[1]) for r in db.execute(
+                "SELECT action, board_id FROM role_permissions WHERE role_id = ?", (rid,),
+            ).fetchall()
+        }
+        assert ("tasks.post_comment", None) in pairs
+        assert ("tasks.post_comment", bid) in pairs
