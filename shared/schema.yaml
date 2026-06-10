@@ -53,7 +53,8 @@ acl_actions:
     - boards.read
     - boards.write
     - tasks.read
-    - tasks.write
+    - tasks.create
+    - tasks.edit
     - tasks.post_comment
 
 comment_types:
