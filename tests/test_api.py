@@ -772,6 +772,70 @@ class TestTags:
         assert resp.status_code == 404
 
 
+class TestLastActivity:
+    """last_activity_time = max(task created_time, latest comment of any type)."""
+
+    def _mk(self, aclient, name):
+        board = _create_board(aclient, name=name)
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        return board, task
+
+    def test_fresh_task_equals_created_time(self, aclient):
+        board, task = self._mk(aclient, "LA1")
+        assert task["last_activity_time"] == task["created_time"]
+        fetched = aclient.get(f"/api/v1/board/{board['id']}/tasks/{task['id']}").json()
+        assert fetched["last_activity_time"] == fetched["created_time"]
+        listed = aclient.get(f"/api/v1/board/{board['id']}/tasks").json()
+        assert [t["last_activity_time"] for t in listed if t["id"] == task["id"]] == [
+            task["created_time"]
+        ]
+
+    def test_comment_bumps_last_activity(self, aclient):
+        board, task = self._mk(aclient, "LA2")
+        comment = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "bump"},
+        ).json()
+        fetched = aclient.get(f"/api/v1/board/{board['id']}/tasks/{task['id']}").json()
+        assert fetched["last_activity_time"] == comment["created_time"]
+        assert fetched["last_activity_time"] >= task["created_time"]
+
+    def test_edit_bumps_last_activity(self, aclient):
+        board, task = self._mk(aclient, "LA3")
+        aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit", json={"title": "T2"}
+        )
+        comments = aclient.get(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/comments"
+        ).json()
+        assert comments  # the edit recorded a METADATA_CHANGE comment
+        fetched = aclient.get(f"/api/v1/board/{board['id']}/tasks/{task['id']}").json()
+        assert fetched["last_activity_time"] == max(c["created_time"] for c in comments)
+
+    def test_sort_by_last_activity(self, aclient, db_conn):
+        board = _create_board(aclient, name="LA4")
+        t1 = aclient.post(f"/api/v1/board/{board['id']}/tasks/new", json={"title": "a"}).json()
+        t2 = aclient.post(f"/api/v1/board/{board['id']}/tasks/new", json={"title": "b"}).json()
+        aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{t1['id']}/new_comment",
+            json={"content": "bump"},
+        )
+        # Pin timestamps so ordering is deterministic: t1 was created first but
+        # its comment makes it the most recently active task.
+        db_conn.execute("UPDATE tasks SET created_time = 1000 WHERE id = ?", (t1["id"],))
+        db_conn.execute("UPDATE tasks SET created_time = 2000 WHERE id = ?", (t2["id"],))
+        db_conn.execute("UPDATE comments SET created_time = 3000 WHERE task_id = ?", (t1["id"],))
+        db_conn.commit()
+
+        desc = aclient.get(f"/api/v1/board/{board['id']}/tasks?sort=last_activity_desc").json()
+        assert [t["id"] for t in desc] == [t1["id"], t2["id"]]
+        assert desc[0]["last_activity_time"] == 3000
+        asc = aclient.get(f"/api/v1/board/{board['id']}/tasks?sort=last_activity_asc").json()
+        assert [t["id"] for t in asc] == [t2["id"], t1["id"]]
+
+
 class TestCommentPermissions:
     """new_comment must be gated by the granular tasks.post_comment action
     (not legacy boards.write), and the task creator may always comment."""

@@ -162,6 +162,7 @@ class TaskResponse(BaseModel):
     parent_task_id: int | None
     creator_id: int | None = None
     text_comment_count: int = 0
+    last_activity_time: float = 0
 
 
 class TaskEdit(BaseModel):

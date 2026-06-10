@@ -175,7 +175,7 @@
     const reverseFieldMap: Record<string, string> = {
       id: 'ID', title: 'TITLE', status: 'STATUS', importance: 'IMPORTANCE',
       estimated_effort: 'EFFORT', created_time: 'CREATED',
-      assignee_name: 'ASSIGNEE',
+      assignee_name: 'ASSIGNEE', last_activity_time: 'LAST_ACTIVITY',
     };
     sortStr = criteria.map(c => `${reverseFieldMap[c.field] || c.field.toUpperCase()} ${c.dir}`).join(', ');
     sortField = criteria[0]?.field || 'id';
@@ -194,6 +194,7 @@
         estimated_effort: 'estimated_effort', effort: 'estimated_effort',
         created_time: 'created_time', created: 'created_time',
         assignee: 'assignee_name', assignee_name: 'assignee_name',
+        last_activity: 'last_activity_time', last_activity_time: 'last_activity_time',
       };
       return { field: fieldMap[field] || field, dir };
     }).filter(c => c.field);

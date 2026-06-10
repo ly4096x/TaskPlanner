@@ -371,6 +371,20 @@ class TestListTasks:
         assert result.exit_code == 0
         assert "1: Fix login bug [NEW]" in result.output
 
+    @patch("client_cli.cli.httpx.get")
+    def test_list_default_sort_is_importance(self, mock_get, runner):
+        mock_get.return_value = mock_response(200, [SAMPLE_TASK])
+        result = runner.invoke(cli, ["-b", "1", "list"])
+        assert result.exit_code == 0
+        assert mock_get.call_args[1].get("params", {}).get("sort") == "importance_desc"
+
+    @patch("client_cli.cli.httpx.get")
+    def test_list_sort_last_activity(self, mock_get, runner):
+        mock_get.return_value = mock_response(200, [SAMPLE_TASK])
+        result = runner.invoke(cli, ["-b", "1", "list", "--sort", "last_activity"])
+        assert result.exit_code == 0
+        assert mock_get.call_args[1].get("params", {}).get("sort") == "last_activity_desc"
+
 
 # --- show-task (with -b flag) ---
 

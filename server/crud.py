@@ -237,10 +237,22 @@ def _enrich_tasks_batch(conn: sqlite3.Connection, tasks: list[dict]) -> list[dic
     ).fetchall()
     comment_counts: dict[int, int] = {r[0]: r[1] for r in comment_rows}
 
+    # Last activity: latest comment of any type (edits and execution logs
+    # are recorded as comments, so this captures every kind of activity)
+    activity_rows = conn.execute(
+        f"SELECT task_id, MAX(created_time) FROM comments "
+        f"WHERE task_id IN ({placeholders}) GROUP BY task_id",
+        task_ids,
+    ).fetchall()
+    last_comment_times: dict[int, float] = {r[0]: r[1] for r in activity_rows}
+
     for task in tasks:
         task["tags"] = tags_by_task.get(task["id"], [])
         task["blockers"] = blockers_by_task.get(task["id"], [])
         task["text_comment_count"] = comment_counts.get(task["id"], 0)
+        task["last_activity_time"] = max(
+            task["created_time"], last_comment_times.get(task["id"], 0)
+        )
         aid = task.get("assignee_id")
         if aid and aid in assignee_map:
             task["assignee_name"] = assignee_map[aid]["display_name"]
@@ -432,9 +444,17 @@ def list_tasks(
     if wheres:
         query += " WHERE " + " AND ".join(wheres)
 
+    # Scalar max of the task's own created_time and its latest comment of any
+    # type (edits/execution logs are recorded as comments).
+    last_activity_sql = (
+        "MAX(tasks.created_time, COALESCE((SELECT MAX(c.created_time) "
+        "FROM comments c WHERE c.task_id = tasks.id), 0))"
+    )
     sort_clauses = {
         "importance_desc": "tasks.importance DESC, tasks.id",
         "importance_asc": "tasks.importance ASC, tasks.id",
+        "last_activity_desc": f"{last_activity_sql} DESC, tasks.id",
+        "last_activity_asc": f"{last_activity_sql} ASC, tasks.id",
     }
     query += f" ORDER BY {sort_clauses.get(sort_by or '', 'tasks.id')}"
 

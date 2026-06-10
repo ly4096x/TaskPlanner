@@ -10,10 +10,12 @@ export interface Task {
   importance: number;
   estimated_effort: number;
   created_time: number;
+  last_activity_time: number;
   status: TaskStatus;
   tags: string[];
   blockers: number[];
   parent_task_id: number | null;
+  creator_id: number | null;
   text_comment_count: number;
 }
 

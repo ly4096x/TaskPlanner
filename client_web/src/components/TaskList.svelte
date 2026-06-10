@@ -52,6 +52,7 @@
     { key: 'importance', label: 'Importance', sortable: true },
     { key: 'assignee_name', label: 'Assignee', sortable: true },
     { key: 'created_time', label: 'Created', sortable: true },
+    { key: 'last_activity_time', label: 'Last Activity', sortable: true },
     { key: 'tags', label: 'Tags', sortable: false },
   ];
 
@@ -136,6 +137,9 @@
           <td class="py-1.5 px-4 border-b border-border text-xs text-text-secondary whitespace-nowrap hidden md:table-cell">
             {formatCreatedTime(task.created_time)}
           </td>
+          <td class="py-1.5 px-4 border-b border-border text-xs text-text-secondary whitespace-nowrap hidden md:table-cell">
+            {formatCreatedTime(task.last_activity_time)}
+          </td>
           <td class="py-1.5 px-4 border-b border-border text-sm hidden md:table-cell">
             <div class="flex flex-wrap gap-1">
               {#each task.tags as tag}
@@ -147,7 +151,7 @@
       {/each}
       {#if tasks.length === 0}
         <tr>
-          <td colspan="8" class="text-center text-text-secondary py-10">No tasks found.</td>
+          <td colspan="9" class="text-center text-text-secondary py-10">No tasks found.</td>
         </tr>
       {/if}
     </tbody>

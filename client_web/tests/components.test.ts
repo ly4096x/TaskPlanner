@@ -14,6 +14,7 @@ const mockTask: Task = {
   importance: 85,
   estimated_effort: 3,
   created_time: 1700000000,
+  last_activity_time: Date.now() / 1000 - 120,
   status: 'NEW',
   tags: ['bug', 'urgent'],
   blockers: [],
@@ -28,6 +29,7 @@ const mockTask2: Task = {
   importance: 40,
   estimated_effort: 5,
   created_time: 1700001000,
+  last_activity_time: 1700001000,
   status: 'STARTED',
   tags: ['feature'],
   blockers: [1],
@@ -76,6 +78,19 @@ describe('TaskList', () => {
 
     await fireEvent.click(screen.getByText('Fix the login bug'));
     expect(onselect).toHaveBeenCalledWith(mockTask);
+  });
+
+  it('shows a Last Activity column with relative time', () => {
+    render(TaskList, { props: { tasks: [mockTask], onselect: vi.fn() } });
+    expect(screen.getByText('Last Activity')).toBeTruthy();
+    expect(screen.getByText('2m ago')).toBeTruthy();
+  });
+
+  it('clicking Last Activity header sorts by last_activity_time', async () => {
+    const onsort = vi.fn();
+    render(TaskList, { props: { tasks: [mockTask], onselect: vi.fn(), onsort } });
+    await fireEvent.click(screen.getByText('Last Activity'));
+    expect(onsort).toHaveBeenCalledWith('last_activity_time');
   });
 });
 

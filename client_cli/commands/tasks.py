@@ -215,8 +215,15 @@ def add_task(ctx, title, description, assignee, importance, effort, tags, blocke
 @click.option(
     "--format", "fmt", default="table", type=click.Choice(["table", "json"]), help="Output format"
 )
+@click.option(
+    "--sort",
+    "sort_key",
+    default="importance",
+    type=click.Choice(["importance", "last_activity"]),
+    help="Sort order, descending (last_activity = latest comment/edit or creation)",
+)
 @click.pass_context
-def list_tasks(ctx, filter_expr, limit, template, fmt):
+def list_tasks(ctx, filter_expr, limit, template, fmt, sort_key):
     """List tasks."""
     url = get_server_url(ctx)
     board = get_board_id(ctx)
@@ -228,7 +235,7 @@ def list_tasks(ctx, filter_expr, limit, template, fmt):
         filter_expr = "STATUS!=CANCELLED,STATUS!=NOT_REPRODUCIBLE"
 
     params["filter"] = filter_expr
-    params["sort"] = "importance_desc"
+    params["sort"] = f"{sort_key}_desc"
     if limit > 0:
         params["limit"] = str(limit)
 
