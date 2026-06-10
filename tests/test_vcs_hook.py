@@ -7,6 +7,7 @@ must never trigger it.
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -57,11 +58,11 @@ class TestDetectCommitCommand:
 
 
 class TestHookEndToEnd:
-    def _run(self, command, cwd):
+    def _run(self, command, cwd, env=None):
         data = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
         return subprocess.run(
             [sys.executable, str(HOOK_PATH)],
-            input=data, capture_output=True, text=True, cwd=cwd,
+            input=data, capture_output=True, text=True, cwd=cwd, env=env,
         )
 
     def test_quoted_phrase_passes_through(self, tmp_path):
@@ -69,8 +70,17 @@ class TestHookEndToEnd:
         assert result.returncode == 0
         assert result.stdout.strip() == ""
 
+    @pytest.mark.skipif(shutil.which("jj") is None, reason="jj not installed")
     def test_real_commit_denied_when_nothing_to_commit(self, tmp_path):
         result = self._run("jj commit -m x", tmp_path)
         assert result.returncode == 0
         out = json.loads(result.stdout)
         assert out["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    @pytest.mark.parametrize("command", ["jj commit -m x", "git commit -m x"])
+    def test_missing_vcs_binary_fails_open(self, tmp_path, command):
+        # Host without jj/git (e.g. CI): the hook must pass through cleanly,
+        # not crash with FileNotFoundError. The real command fails on its own.
+        result = self._run(command, tmp_path, env={"PATH": str(tmp_path)})
+        assert result.returncode == 0
+        assert result.stdout.strip() == ""

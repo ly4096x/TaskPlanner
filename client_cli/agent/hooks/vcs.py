@@ -80,41 +80,47 @@ def is_jj_repo(path):
 
 
 def has_jj_changes(cwd):
-    """Check if jj working copy has changes."""
-    result = subprocess.run(
-        ["jj", "diff"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    """Check if jj working copy has changes. Fails open if jj is missing."""
+    try:
+        result = subprocess.run(
+            ["jj", "diff"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+    except FileNotFoundError:
+        return True  # can't check — let the real command fail on its own
     return bool(result.stdout.strip())
 
 
 def has_git_changes(cwd):
-    """Check if git has staged or unstaged changes."""
-    # Check staged
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--quiet"],
-        capture_output=True,
-        cwd=cwd,
-    )
-    if staged.returncode != 0:
-        return True
-    # Check unstaged tracked files
-    unstaged = subprocess.run(
-        ["git", "diff", "--quiet"],
-        capture_output=True,
-        cwd=cwd,
-    )
-    if unstaged.returncode != 0:
-        return True
-    # Check untracked files
-    untracked = subprocess.run(
-        ["git", "ls-files", "--others", "--exclude-standard"],
-        capture_output=True,
-        text=True,
-        cwd=cwd,
-    )
+    """Check if git has staged or unstaged changes. Fails open if git is missing."""
+    try:
+        # Check staged
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            capture_output=True,
+            cwd=cwd,
+        )
+        if staged.returncode != 0:
+            return True
+        # Check unstaged tracked files
+        unstaged = subprocess.run(
+            ["git", "diff", "--quiet"],
+            capture_output=True,
+            cwd=cwd,
+        )
+        if unstaged.returncode != 0:
+            return True
+        # Check untracked files
+        untracked = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+    except FileNotFoundError:
+        return True  # can't check — let the real command fail on its own
     return bool(untracked.stdout.strip())
 
 
