@@ -370,9 +370,12 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
     if tool_name in ("Edit", "Write"):
         return
 
-    # For Bash: require description to reference one of the agent's STARTED tasks
+    # For Bash: require description to reference one of the agent's STARTED tasks.
+    # \Z (not $) so a trailing newline doesn't count as end-of-suffix; digits are
+    # bounded so int() can't hit Python's 4300-digit conversion limit and crash
+    # the hook (a crashed PreToolUse hook fails open in Claude Code).
     description = tool_input.get("description", "")
-    match = re.search(r" Task#(\d+)$", description)
+    match = re.search(r" Task#(\d{1,9})\Z", description)
     active_by_id = {t["id"]: t for t in active}
     current_task = active_by_id.get(int(match.group(1))) if match else None
     if match is None or current_task is None:

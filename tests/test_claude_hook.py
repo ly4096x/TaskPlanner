@@ -83,7 +83,7 @@ class TestPreToolUseTaskMatching:
         {"id": 30, "title": "todo", "status": "NEW", "importance": 0, "assignee_id": 1},
     ]
 
-    def _invoke(self, runner, monkeypatch, description, posted=None):
+    def _invoke(self, runner, monkeypatch, description, posted=None, tasks=None, tool_name="Bash"):
         from client_cli.commands import claude_hook as ch
 
         monkeypatch.setenv("TASKPLANNER_BOARD_ID", "1")
@@ -91,7 +91,9 @@ class TestPreToolUseTaskMatching:
         monkeypatch.setattr(
             ch, "_hook_resolve_user", lambda *a, **k: {"id": 1, "username": "agent_x"}
         )
-        monkeypatch.setattr(ch, "_hook_get_agent_tasks", lambda *a, **k: list(self.TASKS))
+        if tasks is None:
+            tasks = list(self.TASKS)
+        monkeypatch.setattr(ch, "_hook_get_agent_tasks", lambda *a, **k: list(tasks))
         if posted is None:
             posted = []
         monkeypatch.setattr(
@@ -99,10 +101,14 @@ class TestPreToolUseTaskMatching:
             "_hook_api_post",
             lambda url, headers, json_data=None: posted.append((url, json_data)) or {},
         )
+        if tool_name == "Bash":
+            tool_input = {"command": "echo hi", "description": description}
+        else:
+            tool_input = {"file_path": "/tmp/f.txt", "old_string": "a", "new_string": "b"}
         data = json.dumps({
             "session_id": "match-sess", "agent_id": "main",
-            "tool_name": "Bash",
-            "tool_input": {"command": "echo hi", "description": description},
+            "tool_name": tool_name,
+            "tool_input": tool_input,
         })
         return runner.invoke(cli, ["claude-hook", "PreToolUse"], input=data)
 
@@ -112,6 +118,14 @@ class TestPreToolUseTaskMatching:
         if not result.output.strip():
             return None
         return json.loads(result.output).get("hookSpecificOutput", {}).get("permissionDecision")
+
+    @staticmethod
+    def _reason(result):
+        return (
+            json.loads(result.output)
+            .get("hookSpecificOutput", {})
+            .get("permissionDecisionReason", "")
+        )
 
     def test_first_started_task_accepted(self, runner, monkeypatch):
         result = self._invoke(runner, monkeypatch, "do thing Task#10")
@@ -139,6 +153,84 @@ class TestPreToolUseTaskMatching:
 
     def test_missing_suffix_denied(self, runner, monkeypatch):
         result = self._invoke(runner, monkeypatch, "do thing")
+        assert self._decision(result) == "deny"
+
+    # --- suffix parsing edge cases ---
+
+    def test_trailing_newline_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing Task#10\n")
+        assert self._decision(result) == "deny"
+
+    def test_leading_zeros_resolve_to_task(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing Task#010")
+        assert self._decision(result) != "deny"
+
+    def test_no_leading_space_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "Task#10")
+        assert self._decision(result) == "deny"
+
+    def test_mid_string_reference_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "Task#10 then more")
+        assert self._decision(result) == "deny"
+
+    def test_last_suffix_wins(self, runner, monkeypatch):
+        posted = []
+        result = self._invoke(runner, monkeypatch, "fix Task#10 then Task#20", posted)
+        assert self._decision(result) != "deny"
+        assert any("/tasks/20/new_comment" in url for url, _ in posted)
+
+    def test_huge_task_id_denied_not_crash(self, runner, monkeypatch):
+        # 4301+ digits would make int() raise; the digit bound must turn this
+        # into a deny instead of a fail-open hook crash.
+        result = self._invoke(runner, monkeypatch, "do thing Task#" + "1" * 4301)
+        assert self._decision(result) == "deny"
+
+    def test_ten_digit_task_id_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "do thing Task#1234567890")
+        assert self._decision(result) == "deny"
+
+    # --- EXECUTION_LOG payload ---
+
+    def test_execution_log_payload(self, runner, monkeypatch):
+        posted = []
+        result = self._invoke(runner, monkeypatch, "do thing Task#20", posted)
+        assert self._decision(result) != "deny"
+        _, payload = posted[0]
+        assert payload["content"] == "[Tool:Bash] do thing\n\n```bash\necho hi\n```"
+        assert payload["comment_type"] == "EXECUTION_LOG"
+        assert payload["as_user"] == "agent_x"
+
+    def test_suffix_only_description_logs_placeholder(self, runner, monkeypatch):
+        posted = []
+        result = self._invoke(runner, monkeypatch, " Task#10", posted)
+        assert self._decision(result) != "deny"
+        _, payload = posted[0]
+        assert payload["content"].startswith("[Tool:Bash] (no description)")
+
+    # --- no-STARTED-task deny paths ---
+
+    def test_no_started_task_denied_with_hint(self, runner, monkeypatch):
+        new_only = [{"id": 30, "title": "todo", "status": "NEW", "importance": 0, "assignee_id": 1}]
+        result = self._invoke(runner, monkeypatch, "x Task#30", tasks=new_only)
+        assert self._decision(result) == "deny"
+        assert "No STARTED task" in self._reason(result)
+
+    def test_no_tasks_at_all_denied_with_hint(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "x Task#30", tasks=[])
+        assert self._decision(result) == "deny"
+        assert "No tasks assigned" in self._reason(result)
+
+    # --- Edit/Write gating ---
+
+    @pytest.mark.parametrize("tool_name", ["Edit", "Write"])
+    def test_edit_write_pass_with_started_task(self, runner, monkeypatch, tool_name):
+        result = self._invoke(runner, monkeypatch, "", tool_name=tool_name)
+        assert self._decision(result) != "deny"
+
+    @pytest.mark.parametrize("tool_name", ["Edit", "Write"])
+    def test_edit_write_denied_without_started_task(self, runner, monkeypatch, tool_name):
+        new_only = [{"id": 30, "title": "todo", "status": "NEW", "importance": 0, "assignee_id": 1}]
+        result = self._invoke(runner, monkeypatch, "", tasks=new_only, tool_name=tool_name)
         assert self._decision(result) == "deny"
 
 

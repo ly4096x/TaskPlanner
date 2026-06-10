@@ -463,7 +463,7 @@ class TestSchema:
     def test_v19_migrates_boards_write_to_post_comment(self, db):
         import time
 
-        from server.db import _migrate_to_v19
+        from server.db import _migrate_to_v19, _set_version
 
         # boards.write was the legacy gate for posting comments; roles holding it
         # (at default or per-board scope) must keep comment access after the
@@ -480,6 +480,7 @@ class TestSchema:
             "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'boards.write', ?)",
             (rid, bid),
         )
+        _set_version(db, 18)
         db.commit()
 
         _migrate_to_v19(db)
@@ -491,3 +492,68 @@ class TestSchema:
         }
         assert ("tasks.post_comment", None) in pairs
         assert ("tasks.post_comment", bid) in pairs
+
+    def test_v19_grant_not_replayed_after_upgrade(self, db):
+        from server.db import init_db
+
+        # An admin revoking tasks.post_comment from a role that keeps
+        # boards.write must not be undone by the next startup's init_db
+        # (migrations replay on every startup; the grant is version-gated).
+        db.execute("INSERT INTO roles (name, built_in) VALUES ('no_comment', 0)")
+        rid = db.execute("SELECT id FROM roles WHERE name = 'no_comment'").fetchone()[0]
+        db.execute(
+            "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'boards.write', NULL)",
+            (rid,),
+        )
+        db.commit()
+
+        init_db(db)  # simulated restart on an already-v19 DB
+        actions = {
+            r[0] for r in db.execute(
+                "SELECT action FROM role_permissions WHERE role_id = ?", (rid,)
+            ).fetchall()
+        }
+        assert "tasks.post_comment" not in actions
+
+    def test_v19_alter_adds_creator_id_to_existing_db(self):
+        import time
+
+        from server.db import get_connection, init_db
+
+        # Simulate a real v18 database: tasks table without creator_id.
+        # _BASE_SCHEMA's CREATE TABLE IF NOT EXISTS skips the existing table,
+        # so only the v19 ALTER TABLE can add the column.
+        with get_connection(":memory:") as conn:
+            conn.executescript("""
+                CREATE TABLE tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    board_id INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    assignee_id INTEGER,
+                    description TEXT NOT NULL DEFAULT '',
+                    importance INTEGER NOT NULL DEFAULT 0,
+                    estimated_effort INTEGER NOT NULL DEFAULT 0,
+                    created_time REAL NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'NEW',
+                    parent_task_id INTEGER
+                );
+                CREATE TABLE _schema_version (version INTEGER NOT NULL);
+                INSERT INTO _schema_version (version) VALUES (18);
+            """)
+            conn.execute(
+                "INSERT INTO tasks (board_id, title, created_time) VALUES (1, 'legacy', ?)",
+                (time.time(),),
+            )
+            conn.commit()
+
+            init_db(conn)
+
+            cols = [row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()]
+            assert cols.count("creator_id") == 1
+            assert conn.execute("SELECT version FROM _schema_version").fetchone()[0] == 19
+            row = conn.execute("SELECT creator_id FROM tasks WHERE title = 'legacy'").fetchone()
+            assert row[0] is None
+
+            init_db(conn)  # idempotent re-run
+            cols = [row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()]
+            assert cols.count("creator_id") == 1

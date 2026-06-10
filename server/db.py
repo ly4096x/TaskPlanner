@@ -424,13 +424,19 @@ def _migrate_to_v19(conn: sqlite3.Connection) -> None:
 
     - Grant tasks.post_comment wherever a role has boards.write (at the same
       scope), since boards.write was the legacy gate for posting comments.
+      Version-gated so an admin revoking tasks.post_comment from a role that
+      keeps boards.write isn't silently re-granted on the next startup.
     - Add tasks.creator_id so the task creator can always comment on it.
+      Existing rows stay NULL (the creating user was never recorded before
+      v19), so the creator guarantee only applies to tasks created after
+      the upgrade.
     """
-    conn.execute("""
-        INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
-        SELECT role_id, 'tasks.post_comment', board_id FROM role_permissions
-        WHERE action = 'boards.write'
-    """)
+    if _get_version(conn) < 19:
+        conn.execute("""
+            INSERT OR IGNORE INTO role_permissions (role_id, action, board_id)
+            SELECT role_id, 'tasks.post_comment', board_id FROM role_permissions
+            WHERE action = 'boards.write'
+        """)
     task_cols = {row[1] for row in conn.execute("PRAGMA table_info(tasks)").fetchall()}
     if "creator_id" not in task_cols:
         conn.execute(

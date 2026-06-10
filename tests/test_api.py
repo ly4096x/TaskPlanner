@@ -856,3 +856,87 @@ class TestCommentPermissions:
         assert task["creator_id"] == creator["id"]
         fetched = aclient.get(f"/api/v1/board/{board['id']}/tasks/{task['id']}").json()
         assert fetched["creator_id"] == creator["id"]
+        listed = aclient.get(f"/api/v1/board/{board['id']}/tasks").json()
+        assert [t["creator_id"] for t in listed if t["id"] == task["id"]] == [creator["id"]]
+
+    def test_legacy_task_null_creator_permissions(self, client, aclient, db_conn):
+        # Pre-v19 tasks have creator_id NULL: nobody gets the creator bypass,
+        # so only the granular permission (or admin) allows commenting.
+        board = _create_board(aclient, name="CP6")
+        legacy = crud.create_task(db_conn, board_id=board["id"], title="legacy")
+        assert legacy["creator_id"] is None
+        _, reader_client = self._user_client(
+            client, db_conn, "reader6", ["boards.read", "tasks.read"]
+        )
+        resp = reader_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{legacy['id']}/new_comment",
+            json={"content": "nope"},
+        )
+        assert resp.status_code == 403
+        _, commenter_client = self._user_client(
+            client, db_conn, "commenter6", ["boards.read", "tasks.read", "tasks.post_comment"]
+        )
+        resp = commenter_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{legacy['id']}/new_comment",
+            json={"content": "ok"},
+        )
+        assert resp.status_code == 201
+
+    def test_roleless_creator_can_still_comment(self, client, aclient, db_conn):
+        # Strongest form of "creator can always comment": the creator's role
+        # is later revoked entirely (role_id NULL denies every board action).
+        board = _create_board(aclient, name="CP7")
+        creator, creator_client = self._user_client(
+            client, db_conn, "creator7", ["boards.read", "tasks.read", "tasks.create"]
+        )
+        task = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "Mine"}
+        ).json()
+        # crud.update_user(role_id=None) is a no-op (None means "unset"); clear via SQL.
+        db_conn.execute("UPDATE users SET role_id = NULL WHERE id = ?", (creator["id"],))
+        db_conn.commit()
+        resp = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={"content": "still my task"},
+        )
+        assert resp.status_code == 201
+
+    def test_comment_on_nonexistent_board_404(self, aclient):
+        resp = aclient.post(
+            "/api/v1/board/99999/tasks/1/new_comment", json={"content": "x"}
+        )
+        assert resp.status_code == 404
+
+    def test_missing_task_403_before_404_for_unprivileged(self, client, aclient, db_conn):
+        # Permission check runs before existence check so users without
+        # tasks.post_comment can't probe whether a task id exists.
+        board = _create_board(aclient, name="CP8")
+        _, reader_client = self._user_client(
+            client, db_conn, "reader8", ["boards.read", "tasks.read"]
+        )
+        resp = reader_client.post(
+            f"/api/v1/board/{board['id']}/tasks/424242/new_comment",
+            json={"content": "x"},
+        )
+        assert resp.status_code == 403
+
+    def test_execution_log_comment_as_user_full_chain(self, client, aclient, db_conn):
+        # The exact request the Claude Code hook sends: admin token posting an
+        # EXECUTION_LOG comment attributed to the agent via as_user.
+        board = _create_board(aclient, name="CP9")
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        agent_user, _ = self._user_client(client, db_conn, "agentlog9", self.AGENT_PERMS)
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/new_comment",
+            json={
+                "content": "[Tool:Bash] probe\n\n```bash\ntrue\n```",
+                "comment_type": "EXECUTION_LOG",
+                "as_user": agent_user["username"],
+            },
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["comment_type"] == "EXECUTION_LOG"
+        assert body["commenter_username"] == agent_user["username"]
