@@ -27,6 +27,13 @@ packages = ["server", "client_cli", "shared"]
 [tool.hatch.build.targets.wheel.force-include]
 "client_web/dist" = "server/static"
 
+[tool.uv]
+# Supply-chain policy: only consider package versions published at least one
+# week ago, so a freshly-published (possibly compromised) release can't be
+# pulled in. Rolling window — evaluated at each resolution. Mirrors pnpm's
+# minimumReleaseAge in client_web/pnpm-workspace.yaml.
+exclude-newer = "1 week"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

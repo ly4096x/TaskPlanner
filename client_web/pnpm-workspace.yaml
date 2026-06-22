@@ -1,0 +1,6 @@
+# Supply-chain policy: only install package versions published at least one
+# week ago (10080 minutes), so a freshly-published (possibly compromised)
+# release can't be pulled in. Rolling window enforced at install/resolve time.
+# pnpm v11 defaults this to 1440 (24h); we set it explicitly so local pnpm
+# (which defaulted to 0 before v11) and CI agree. Mirrors uv's exclude-newer.
+minimumReleaseAge: 10080
