@@ -74,8 +74,8 @@ class TestClaudeHookPreToolUse:
 
 
 class TestPreToolUseTaskPlannerChaining:
-    """The TaskPlanner bypass only allows a single, un-chained invocation —
-    chaining could smuggle an arbitrary command past the task gate."""
+    """The TaskPlanner bypass allows pipes and redirections but not command
+    sequencing — sequencing could smuggle an arbitrary command past the gate."""
 
     def _invoke(self, runner, command):
         data = json.dumps({
@@ -97,36 +97,55 @@ class TestPreToolUseTaskPlannerChaining:
         assert self._denied(self._invoke(runner, "TaskPlanner list")) is None
 
     def test_quoted_operator_passes(self, runner):
-        # Operators inside quotes are legitimate args, not chaining.
+        # Operators inside quotes are legitimate args, not sequencing.
         assert self._denied(self._invoke(runner, 'TaskPlanner add-task --title "a && b"')) is None
+
+    @pytest.mark.parametrize("command", [
+        "TaskPlanner list | grep x",
+        "TaskPlanner list | grep x | wc -l",
+        "TaskPlanner list |& cat",
+        "TaskPlanner list > out.txt",
+        "TaskPlanner list >> out.txt",
+        "TaskPlanner list 2> err.txt",
+        "TaskPlanner list > out.txt 2>&1",
+        "TaskPlanner list < in.txt",
+    ])
+    def test_pipes_and_redirects_pass(self, runner, command):
+        assert self._denied(self._invoke(runner, command)) is None
 
     @pytest.mark.parametrize("command", [
         "TaskPlanner list && rm -rf /",
         "TaskPlanner list || true",
         "TaskPlanner list; echo hi",
-        "TaskPlanner list | grep x",
         "TaskPlanner edit 5 --status DONE &",
-        "TaskPlanner list > out.txt",
+        "TaskPlanner list | grep x && rm -rf /",
         "TaskPlanner list $(rm -rf /)",
         "TaskPlanner list `rm -rf /`",
         "TaskPlanner edit 5\nrm -rf /",
     ])
-    def test_chaining_denied(self, runner, command):
+    def test_sequencing_denied(self, runner, command):
         reason = self._denied(self._invoke(runner, command))
         assert reason is not None
-        assert "Chaining is not allowed" in reason
+        assert "Command sequencing is not allowed" in reason
 
-    def test_lowercase_chaining_denied(self, runner):
+    def test_lowercase_sequencing_denied(self, runner):
         assert self._denied(self._invoke(runner, "taskplanner list && rm -rf /")) is not None
 
 
 class TestHasShellChaining:
-    """Unit coverage for the shlex-based chaining detector."""
+    """Unit coverage for the shlex-based sequencing detector."""
 
     @pytest.mark.parametrize("command", [
         "TaskPlanner list",
         'TaskPlanner add-task --title "a && b; c"',
         "TaskPlanner edit 5 --status DONE",
+        # Pipes and redirections are allowed.
+        "TaskPlanner list | cat",
+        "TaskPlanner list | grep x | wc -l",
+        "TaskPlanner list |& cat",
+        "TaskPlanner list > out.txt",
+        "TaskPlanner list 2>&1",
+        "TaskPlanner list < in.txt",
     ])
     def test_clean(self, command):
         from client_cli.commands.claude_hook import _has_shell_chaining
@@ -134,15 +153,17 @@ class TestHasShellChaining:
 
     @pytest.mark.parametrize("command", [
         "TaskPlanner list && echo",
+        "TaskPlanner list || echo",
         "TaskPlanner list; echo",
-        "TaskPlanner list | cat",
         "TaskPlanner list & ",
+        "TaskPlanner list | cat && echo",
         "echo $(TaskPlanner list)",
         "TaskPlanner list `echo`",
         "TaskPlanner list\necho",
+        '(TaskPlanner list)',
         'TaskPlanner add-task --title "unterminated',
     ])
-    def test_chained(self, command):
+    def test_sequenced(self, command):
         from client_cli.commands.claude_hook import _has_shell_chaining
         assert _has_shell_chaining(command) is True
 
