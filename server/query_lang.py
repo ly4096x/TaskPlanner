@@ -281,16 +281,19 @@ def _parse_single_clause(clause_str: str) -> FilterClause:
                 or pos < op_pos
                 or (pos == op_pos and found_op is not None and len(op) > len(found_op))
             ):
-                # Check that the part before is all uppercase letters/underscores (a valid field)
-                candidate_field = clause_str[:pos]
-                if re.match(r"^[A-Z_]+$", candidate_field):
+                # The part before the operator must be a field name — letters and
+                # underscores only, tolerating whitespace around the operator
+                # (e.g. "STATUS = STARTED"). Case is normalized below.
+                candidate_field = clause_str[:pos].strip()
+                if re.match(r"^[A-Za-z_]+$", candidate_field):
                     found_op = op
                     op_pos = pos
 
     if found_op is None:
         raise FilterParseError(f"Invalid operator in clause: {clause_str!r}")
 
-    field = clause_str[:op_pos]
+    # Field names are case-insensitive; canonical form is uppercase.
+    field = clause_str[:op_pos].strip().upper()
     raw_value = clause_str[op_pos + len(found_op) :]
 
     if field not in VALID_FIELDS:

@@ -153,6 +153,9 @@ Operators: `=`, `!=`, `>`, `<`, `>=`, `<=`, `~=` (contains/substring match).
 - List fields (`TAGS`, `BLOCKERS`): `=` checks membership, `!=` checks absence.
 - Boolean logic: `AND`, `OR`, `NOT`, parentheses `()`. Comma `,` is implicit `AND`.
 - Quoted values: use `"..."` for values containing spaces or special characters.
+- Field names are case-insensitive and whitespace around operators is allowed
+  (`status = STARTED` is equivalent to `STATUS=STARTED`). A malformed filter
+  returns HTTP 400 with an `Invalid filter` message.
 
 Examples:
 ```

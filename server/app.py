@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from server import auth, crud, models
 from server.db import get_connection, get_runtime_dir, init_db
 from server.events import event_bus
-from server.query_lang import parse_filter, to_sql_where
+from server.query_lang import FilterParseError, parse_filter, to_sql_where
 
 
 def _get_upload_dir() -> Path:
@@ -355,10 +355,14 @@ def list_tasks(
     _check_board_read(conn, user, board_id)
     where_clause = None
     if filter:
-        parsed = parse_filter(filter)
-        if parsed:
-            where_sql, where_params = to_sql_where(parsed)
-            where_clause = (where_sql, where_params)
+        # A malformed filter is a client error (400), not a server fault (500).
+        try:
+            parsed = parse_filter(filter)
+            if parsed:
+                where_sql, where_params = to_sql_where(parsed)
+                where_clause = (where_sql, where_params)
+        except FilterParseError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid filter: {exc}")
     return crud.list_tasks(
         conn, board_id=board_id, where_clause=where_clause, sort_by=sort, limit=limit, offset=offset
     )

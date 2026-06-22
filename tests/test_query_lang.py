@@ -92,6 +92,29 @@ class TestParseFilter:
         result = parse_filter("BLOCKERS~=5")
         assert result == FilterClause("BLOCKERS", "~=", "5")
 
+    # --- #531: spaces around the operator and lowercase field names ---
+
+    def test_spaces_around_operator(self):
+        result = parse_filter("STATUS = STARTED")
+        assert result == FilterClause("STATUS", "=", "STARTED")
+
+    def test_lowercase_field(self):
+        result = parse_filter("status=STARTED")
+        assert result == FilterClause("STATUS", "=", "STARTED")
+
+    def test_lowercase_field_with_spaces(self):
+        # The exact form from the bug report.
+        result = parse_filter("status = STARTED")
+        assert result == FilterClause("STATUS", "=", "STARTED")
+
+    def test_spaces_around_two_char_operator(self):
+        result = parse_filter("IMPORTANCE >= 80")
+        assert result == FilterClause("IMPORTANCE", ">=", "80")
+
+    def test_mixed_case_field_with_parent(self):
+        result = parse_filter("parent = 518")
+        assert result == FilterClause("PARENT", "=", "518")
+
 
 class TestParseFilterBoolean:
     """Tests for boolean logic: AND, OR, NOT, parentheses."""

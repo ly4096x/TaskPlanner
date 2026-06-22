@@ -451,6 +451,24 @@ class TestTasks:
         assert len(tasks) == 1
         assert tasks[0]["title"] == "Started task"
 
+        # #531: lowercase fields and spaces around the operator must work too.
+        for expr in ("status = STARTED", "status=STARTED", "STATUS = STARTED"):
+            resp = aclient.get(
+                f"/api/v1/board/{board['id']}/tasks", params={"filter": expr}
+            )
+            assert resp.status_code == 200, expr
+            assert [t["title"] for t in resp.json()] == ["Started task"], expr
+
+    def test_malformed_filter_returns_400_not_500(self, aclient):
+        """#531: a filter that can't be parsed is a client error, not a 500."""
+        board = _create_board(aclient)
+        for bad in ("STATUS??NEW", "FOOBAR=1", "=NEW", "STATUS"):
+            resp = aclient.get(
+                f"/api/v1/board/{board['id']}/tasks", params={"filter": bad}
+            )
+            assert resp.status_code == 400, f"{bad!r} -> {resp.status_code}"
+            assert "Invalid filter" in resp.json()["detail"]
+
     def test_board_isolation(self, aclient):
         """Tasks on board 1 should not appear in board 2 listing."""
         board1 = _create_board(aclient, name="B1")
