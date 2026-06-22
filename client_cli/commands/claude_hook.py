@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shlex
 from pathlib import Path
 
 import click
@@ -319,6 +320,39 @@ def _handle_session_start(ctx, url, headers, data, session_id, agent_id):
         })
 
 
+# Shell operators that chain or compose additional commands. shlex with
+# punctuation_chars isolates runs of these into their own tokens; newlines and
+# backticks are checked separately since shlex treats them as whitespace / word
+# characters respectively rather than as punctuation.
+_SHELL_CHAIN_CHARS = ";&|<>()"
+
+
+def _has_shell_chaining(command):
+    """True if `command` chains or composes commands via shell operators.
+
+    Used to stop the TaskPlanner bypass from being abused to smuggle an
+    arbitrary command past the task gate (e.g. ``TaskPlanner list && rm -rf``).
+    Operators inside quotes (a legitimate ``--title "a && b"``) are ignored.
+    """
+    # Newlines, backticks and command substitution stay live even inside double
+    # quotes, so shlex (which strips quotes / treats newlines as whitespace)
+    # can't see them — check the raw string for those.
+    if any(s in command for s in ("\n", "\r", "`", "$(")):
+        return True
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    try:
+        tokens = list(lexer)
+    except ValueError:
+        # Unbalanced quotes etc. — can't reason about it safely; treat as chained.
+        return True
+    # punctuation_chars isolates runs of operators into their own tokens, so a
+    # chaining operator is a token made up *entirely* of operator characters.
+    # A quoted arg keeps its other characters, so it never looks like one.
+    chars = set(_SHELL_CHAIN_CHARS)
+    return any(tok and set(tok) <= chars for tok in tokens)
+
+
 def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
     """PreToolUse: require active task for Bash/Edit/Write."""
     tool_name = data.get("tool_name", "")
@@ -329,8 +363,19 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
 
     command = tool_input.get("command", "")
 
-    # Always allow TaskPlanner CLI commands
-    if tool_name == "Bash" and (command.strip().startswith("TaskPlanner ") or command.strip().startswith("taskplanner ")):
+    # Always allow TaskPlanner CLI commands — but only a single, un-chained
+    # invocation. Chaining (e.g. `TaskPlanner list && rm -rf /`) would smuggle
+    # an arbitrary command past the task gate, so deny it instead of bypassing.
+    if tool_name == "Bash" and (
+        command.strip().startswith("TaskPlanner ") or command.strip().startswith("taskplanner ")
+    ):
+        if _has_shell_chaining(command):
+            _hook_deny(
+                "Chaining is not allowed for TaskPlanner commands. Run TaskPlanner "
+                "as a single command with no shell operators (; && || | & redirections, "
+                "command substitution, backticks, or newlines). Split chained commands "
+                "into separate Bash calls."
+            )
         return
 
     # Look up agent user

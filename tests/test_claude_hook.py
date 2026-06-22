@@ -73,6 +73,80 @@ class TestClaudeHookPreToolUse:
         assert result.exit_code == 0
 
 
+class TestPreToolUseTaskPlannerChaining:
+    """The TaskPlanner bypass only allows a single, un-chained invocation —
+    chaining could smuggle an arbitrary command past the task gate."""
+
+    def _invoke(self, runner, command):
+        data = json.dumps({
+            "session_id": "chain-sess", "agent_id": "main",
+            "tool_name": "Bash",
+            "tool_input": {"command": command, "description": "x"},
+        })
+        return runner.invoke(cli, ["claude-hook", "PreToolUse"], input=data)
+
+    @staticmethod
+    def _denied(result):
+        assert result.exit_code == 0
+        if not result.output.strip():
+            return None
+        out = json.loads(result.output).get("hookSpecificOutput", {})
+        return out.get("permissionDecisionReason") if out.get("permissionDecision") == "deny" else None
+
+    def test_plain_command_passes(self, runner):
+        assert self._denied(self._invoke(runner, "TaskPlanner list")) is None
+
+    def test_quoted_operator_passes(self, runner):
+        # Operators inside quotes are legitimate args, not chaining.
+        assert self._denied(self._invoke(runner, 'TaskPlanner add-task --title "a && b"')) is None
+
+    @pytest.mark.parametrize("command", [
+        "TaskPlanner list && rm -rf /",
+        "TaskPlanner list || true",
+        "TaskPlanner list; echo hi",
+        "TaskPlanner list | grep x",
+        "TaskPlanner edit 5 --status DONE &",
+        "TaskPlanner list > out.txt",
+        "TaskPlanner list $(rm -rf /)",
+        "TaskPlanner list `rm -rf /`",
+        "TaskPlanner edit 5\nrm -rf /",
+    ])
+    def test_chaining_denied(self, runner, command):
+        reason = self._denied(self._invoke(runner, command))
+        assert reason is not None
+        assert "Chaining is not allowed" in reason
+
+    def test_lowercase_chaining_denied(self, runner):
+        assert self._denied(self._invoke(runner, "taskplanner list && rm -rf /")) is not None
+
+
+class TestHasShellChaining:
+    """Unit coverage for the shlex-based chaining detector."""
+
+    @pytest.mark.parametrize("command", [
+        "TaskPlanner list",
+        'TaskPlanner add-task --title "a && b; c"',
+        "TaskPlanner edit 5 --status DONE",
+    ])
+    def test_clean(self, command):
+        from client_cli.commands.claude_hook import _has_shell_chaining
+        assert _has_shell_chaining(command) is False
+
+    @pytest.mark.parametrize("command", [
+        "TaskPlanner list && echo",
+        "TaskPlanner list; echo",
+        "TaskPlanner list | cat",
+        "TaskPlanner list & ",
+        "echo $(TaskPlanner list)",
+        "TaskPlanner list `echo`",
+        "TaskPlanner list\necho",
+        'TaskPlanner add-task --title "unterminated',
+    ])
+    def test_chained(self, command):
+        from client_cli.commands.claude_hook import _has_shell_chaining
+        assert _has_shell_chaining(command) is True
+
+
 class TestPreToolUseTaskMatching:
     """Any STARTED task assigned to the agent must be a valid Task# reference
     in a Bash description suffix — not just the first one in list order."""
