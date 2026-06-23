@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.13"
 
 [options]
-exclude-newer = "2026-06-15T04:03:03.837135817Z"
+exclude-newer = "2026-06-16T07:02:23.122309617Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -362,7 +362,7 @@ wheels = [
 
 [[package]]
 name = "task-planner"
-version = "0.3.13"
+version = "0.3.14"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
