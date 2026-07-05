@@ -250,6 +250,17 @@ def claude_hook(ctx, event):
                 tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
                 if tok:
                     exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
+            # Pin the board for subagents too, so tasks they create land on the
+            # originating session's board rather than whatever the current env
+            # happens to say (#570: fork subagents scattered tasks).
+            board = ctx.obj.get("board")
+            if not board:
+                try:
+                    board = get_board_id(ctx)
+                except SystemExit:
+                    board = None
+            if board:
+                exports["TASKPLANNER_BOARD_ID"] = str(board)
             _hook_export_env(exports)
     # Unknown events silently pass through
 
@@ -275,14 +286,22 @@ def _handle_session_start(ctx, url, headers, data, session_id, agent_id):
         tok = _hook_mint_token(url, headers, user["id"], f"hook:{session_id[:8]}:{agent_id}")
         if tok:
             exports["TASKPLANNER_USER_ACCESS_TOKEN"] = tok
-    _hook_export_env(exports)
 
     board = ctx.obj.get("board")
     if not board:
         try:
             board = get_board_id(ctx)
         except SystemExit:
-            return
+            board = None
+    # Pin the resolved board into the session env file. Claude Code re-sources
+    # this file on resume, so the session stays on its originating project board
+    # even when the resuming shell's TASKPLANNER_BOARD_ID points elsewhere —
+    # otherwise one session's tasks scatter across boards (#570/#706).
+    if board:
+        exports["TASKPLANNER_BOARD_ID"] = str(board)
+    _hook_export_env(exports)
+    if not board:
+        return
 
     tasks = _hook_get_agent_tasks(url, headers, board, user["id"])
     if not tasks:
@@ -330,19 +349,77 @@ def _handle_session_start(ctx, url, headers, data, session_id, agent_id):
 # and ``&&`` (sequencing) are distinct tokens that stay blocked.
 _DENIED_OPERATORS = {";", "&", "&&", "||", "(", ")"}
 
+# Quoted-delimiter heredoc opener: ``<<'WORD'`` / ``<<"WORD"`` (optionally ``<<-``).
+# We only strip quoted-delimiter heredocs — the documented pattern uses
+# ``<<'EOF'`` — so a bare ``<<`` sitting in Markdown prose isn't mistaken for one.
+_HEREDOC_OPENER = re.compile(r"<<-?\s*(['\"])(\w+)\1")
+
+
+def _strip_heredocs(command):
+    """Return `command` with quoted-delimiter heredoc bodies removed.
+
+    The skill documents multi-line Markdown as ``-m "$(cat <<'EOF' ... EOF)"``.
+    The body can contain arbitrary quotes, backticks and newlines that would
+    otherwise unbalance any quote-based scan; a heredoc body is unambiguous
+    (everything up to a line equal to the delimiter word), so drop it first and
+    let the residual — which has balanced quotes — go through the normal checks.
+    """
+    lines = command.split("\n")
+    out, i = [], 0
+    while i < len(lines):
+        line = lines[i]
+        out.append(line)
+        for _, word in _HEREDOC_OPENER.findall(line):
+            i += 1
+            while i < len(lines) and lines[i].strip() != word:
+                i += 1
+            # lines[i], if present, is the terminator line — drop it too.
+        i += 1
+    return "\n".join(out)
+
+
+def _toplevel_has(command, targets):
+    """True if any character in `targets` occurs outside single/double quotes.
+
+    Lets us treat newlines and backticks as legitimate inside a quoted argument
+    (multi-line Markdown, inline ``code``) but reject them at the top level,
+    where a newline separates commands and a backtick is command substitution.
+    """
+    in_single = in_double = False
+    i, n = 0, len(command)
+    while i < n:
+        c = command[i]
+        if c == "\\" and not in_single:
+            i += 2
+            continue
+        if c == "'" and not in_double:
+            in_single = not in_single
+        elif c == '"' and not in_single:
+            in_double = not in_double
+        elif c in targets and not in_single and not in_double:
+            return True
+        i += 1
+    return False
+
 
 def _has_shell_chaining(command):
-    """True if `command` sequences, backgrounds, or spawns another command.
+    """True if `command` sequences, backgrounds, or spawns another top-level command.
 
-    Pipes and redirections are permitted; command sequencing (``;`` ``&&``
-    ``||``), backgrounding (``&``), subshells / command substitution, backticks
-    and newlines are not. Operators inside quotes (a legitimate
-    ``--title "a && b"``) are ignored.
+    Pipes and redirections are permitted, and so is command substitution inside a
+    quoted argument together with newlines inside quotes — the taskplanner skill
+    documents passing multi-line Markdown as ``-m "$(cat <<'EOF' ... EOF)"``.
+    Blocked: top-level command sequencing (``;`` ``&&`` ``||``), backgrounding
+    (``&``), subshells / unquoted command substitution (``(...)`` / backticks) and
+    a top-level newline. Operators, substitutions and newlines inside quotes are
+    ignored.
     """
-    # Newlines, backticks and command substitution stay live even inside double
-    # quotes, so shlex (which strips quotes / treats newlines as whitespace)
-    # can't see them — check the raw string for those.
-    if any(s in command for s in ("\n", "\r", "`", "$(")):
+    # Drop heredoc bodies first — their arbitrary content would otherwise fool
+    # the quote-based scan below (leaving the residual with balanced quotes).
+    command = _strip_heredocs(command)
+    # A top-level newline separates commands; a top-level backtick is unquoted
+    # command substitution. Both are legitimate inside quotes (multi-line markdown
+    # / inline code), so only reject them when they appear outside quotes.
+    if _toplevel_has(command, "\n\r`"):
         return True
     lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
@@ -374,8 +451,9 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
         if _has_shell_chaining(command):
             _hook_deny(
                 "Command sequencing is not allowed for TaskPlanner commands: no "
-                "; && || & subshells, command substitution, backticks, or newlines. "
-                "Pipes (|) and redirections (>, >>, 2>&1, ...) are allowed. Split "
+                "top-level ; && || & or subshells. Pipes (|), redirections "
+                "(>, >>, 2>&1, ...) and quoted multi-line values — including "
+                "-m \"$(cat <<'EOF' ... EOF)\" for Markdown — are allowed. Split "
                 "sequenced commands into separate Bash calls."
             )
         return
@@ -396,6 +474,19 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
     if tasks is None:
         _hook_deny("Cannot fetch task list from TaskPlanner. Is the server running?")
         return
+
+    # A delegated subagent works on behalf of the session's main agent: accept
+    # the main agent's tasks too, so a parent can hand its own STARTED task to a
+    # subagent without the subagent creating a duplicate mirror task (#589 —
+    # the subagent's hook identity differs from the parent identity that owns
+    # the task).
+    if agent_id != "main":
+        main_user = _hook_resolve_user(url, headers, session_id, "main")
+        if main_user and main_user["id"] != user["id"]:
+            main_tasks = _hook_get_agent_tasks(url, headers, board, main_user["id"], limit=0)
+            if main_tasks:
+                seen_ids = {t["id"] for t in tasks}
+                tasks.extend(t for t in main_tasks if t["id"] not in seen_ids)
 
     active = [t for t in tasks if t["status"] == "STARTED"]
     if not active:

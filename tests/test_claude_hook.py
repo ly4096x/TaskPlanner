@@ -37,6 +37,58 @@ class TestClaudeHookSessionStart:
             assert "hookSpecificOutput" in parsed
 
 
+class TestBoardPinning:
+    """SessionStart/SubagentStart must pin TASKPLANNER_BOARD_ID into the session
+    env file: Claude Code re-sources it on resume, so the session stays on its
+    originating board instead of drifting with the resuming shell (#570/#706)."""
+
+    def _setup(self, monkeypatch, tmp_path):
+        from client_cli.commands import claude_hook as ch
+
+        env_file = tmp_path / "sessionstart-hook-0.sh"
+        monkeypatch.setenv("CLAUDE_ENV_FILE", str(env_file))
+        monkeypatch.setenv("TASKPLANNER_BOARD_ID", "7")
+        monkeypatch.delenv("TASKPLANNER_USER_ACCESS_TOKEN", raising=False)
+        monkeypatch.setattr(
+            ch, "_hook_get_or_create_user", lambda *a, **k: {"id": 1, "username": "agent_x"}
+        )
+        monkeypatch.setattr(ch, "_hook_mint_token", lambda *a, **k: "tok-123")
+        monkeypatch.setattr(ch, "_hook_get_agent_tasks", lambda *a, **k: [])
+        return env_file
+
+    def test_session_start_pins_board(self, runner, monkeypatch, tmp_path):
+        env_file = self._setup(monkeypatch, tmp_path)
+        data = json.dumps({"session_id": "pin-sess", "agent_id": "main"})
+        result = runner.invoke(cli, ["claude-hook", "SessionStart"], input=data)
+        assert result.exit_code == 0
+        content = env_file.read_text()
+        assert "export TASKPLANNER_BOARD_ID=7" in content
+        assert "export TASKPLANNER_USERNAME=agent_x" in content
+        assert "export TASKPLANNER_USER_ACCESS_TOKEN=tok-123" in content
+
+    def test_subagent_start_pins_board(self, runner, monkeypatch, tmp_path):
+        env_file = self._setup(monkeypatch, tmp_path)
+        data = json.dumps({"session_id": "pin-sess", "agent_id": "sub-1"})
+        result = runner.invoke(cli, ["claude-hook", "SubagentStart"], input=data)
+        assert result.exit_code == 0
+        content = env_file.read_text()
+        assert "export TASKPLANNER_BOARD_ID=7" in content
+
+    def test_session_start_without_board_still_exports_identity(
+        self, runner, monkeypatch, tmp_path
+    ):
+        env_file = self._setup(monkeypatch, tmp_path)
+        monkeypatch.delenv("TASKPLANNER_BOARD_ID")
+        # No .env walk-up hit either — resolve from an empty cwd.
+        monkeypatch.chdir(tmp_path)
+        data = json.dumps({"session_id": "pin-sess", "agent_id": "main"})
+        result = runner.invoke(cli, ["claude-hook", "SessionStart"], input=data)
+        assert result.exit_code == 0
+        content = env_file.read_text()
+        assert "TASKPLANNER_BOARD_ID" not in content
+        assert "export TASKPLANNER_USERNAME=agent_x" in content
+
+
 class TestClaudeHookPreToolUse:
     def test_non_gated_tool_passes(self, runner):
         """Non-Bash/Edit/Write tools should pass through (no output)."""
@@ -109,8 +161,13 @@ class TestPreToolUseTaskPlannerChaining:
         "TaskPlanner list 2> err.txt",
         "TaskPlanner list > out.txt 2>&1",
         "TaskPlanner list < in.txt",
+        # Multi-line Markdown via the documented heredoc pattern (#580/#731).
+        "TaskPlanner add-comment 42 -m \"$(cat <<'EOF'\n## Findings\n\n- `code`\nEOF\n)\"",
+        'TaskPlanner add-comment 42 -m "line1\nline2\n- bullet"',
+        'TaskPlanner add-comment 42 -m "use `code` and `x` here"',
+        'TaskPlanner add-task --title "a && b; c"',
     ])
-    def test_pipes_and_redirects_pass(self, runner, command):
+    def test_pipes_redirects_and_multiline_markdown_pass(self, runner, command):
         assert self._denied(self._invoke(runner, command)) is None
 
     @pytest.mark.parametrize("command", [
@@ -119,9 +176,10 @@ class TestPreToolUseTaskPlannerChaining:
         "TaskPlanner list; echo hi",
         "TaskPlanner edit 5 --status DONE &",
         "TaskPlanner list | grep x && rm -rf /",
-        "TaskPlanner list $(rm -rf /)",
-        "TaskPlanner list `rm -rf /`",
-        "TaskPlanner edit 5\nrm -rf /",
+        "TaskPlanner list $(rm -rf /)",       # unquoted command substitution
+        "TaskPlanner list `rm -rf /`",        # top-level backtick substitution
+        "TaskPlanner edit 5\nrm -rf /",       # top-level newline separator
+        'TaskPlanner add-comment 1 -m "q1\nq2"\nrm -rf /',  # quoted nl + top-level nl
     ])
     def test_sequencing_denied(self, runner, command):
         reason = self._denied(self._invoke(runner, command))
@@ -146,6 +204,14 @@ class TestHasShellChaining:
         "TaskPlanner list > out.txt",
         "TaskPlanner list 2>&1",
         "TaskPlanner list < in.txt",
+        # Quoted command substitution / newlines / backticks (multi-line markdown).
+        "TaskPlanner add-comment 42 -m \"$(cat <<'EOF'\n## H\n- `c`\nEOF\n)\"",
+        'TaskPlanner add-comment 1 -m "line\n`code`\nmore"',
+        'TaskPlanner list -m "$(rm -rf /)"',   # substitution inside quotes: allowed
+        # Heredoc body with embedded quotes, backticks, nested EOF and $() — the
+        # case that fools a naive quote scanner (#580/#731).
+        "TaskPlanner add-comment 732 -m \"$(cat <<'EOF'\n## H\n\n```bash\nx -m \"$(cat <<'EOF' ... EOF)\"\n```\n- \"quotes\" and `code` and $(subst)\nEOF\n)\"",
+        'TaskPlanner add-comment 1 -m "prose with << b less than"',  # bare << not a heredoc
     ])
     def test_clean(self, command):
         from client_cli.commands.claude_hook import _has_shell_chaining
@@ -158,8 +224,9 @@ class TestHasShellChaining:
         "TaskPlanner list & ",
         "TaskPlanner list | cat && echo",
         "echo $(TaskPlanner list)",
-        "TaskPlanner list `echo`",
-        "TaskPlanner list\necho",
+        "TaskPlanner list $(rm -rf /)",   # unquoted command substitution
+        "TaskPlanner list `echo`",        # top-level backtick
+        "TaskPlanner list\necho",         # top-level newline
         '(TaskPlanner list)',
         'TaskPlanner add-task --title "unterminated',
     ])
@@ -327,6 +394,82 @@ class TestPreToolUseTaskMatching:
         new_only = [{"id": 30, "title": "todo", "status": "NEW", "importance": 0, "assignee_id": 1}]
         result = self._invoke(runner, monkeypatch, "", tasks=new_only, tool_name=tool_name)
         assert self._decision(result) == "deny"
+
+
+class TestPreToolUseSubagentDelegation:
+    """A subagent's Bash gate must also accept the session main agent's tasks,
+    so a parent can hand its own STARTED task to a subagent without forcing a
+    duplicate mirror task (#589)."""
+
+    MAIN = {"id": 1, "username": "agent_main"}
+    SUB = {"id": 2, "username": "agent_main_sub"}
+    MAIN_TASKS = [
+        {"id": 10, "title": "parent work", "status": "STARTED", "importance": 0, "assignee_id": 1},
+    ]
+
+    def _invoke(self, runner, monkeypatch, description, posted=None, sub_tasks=None):
+        from client_cli.commands import claude_hook as ch
+
+        monkeypatch.setenv("TASKPLANNER_BOARD_ID", "1")
+        monkeypatch.delenv("TASKPLANNER_USER_ACCESS_TOKEN", raising=False)
+
+        def resolve(url, headers, session_id, agent_id):
+            return dict(self.MAIN) if agent_id == "main" else dict(self.SUB)
+
+        monkeypatch.setattr(ch, "_hook_resolve_user", resolve)
+
+        def get_tasks(url, headers, board, user_id, filter_expr=None, limit=None):
+            if user_id == self.MAIN["id"]:
+                return [dict(t) for t in self.MAIN_TASKS]
+            return [dict(t) for t in (sub_tasks or [])]
+
+        monkeypatch.setattr(ch, "_hook_get_agent_tasks", get_tasks)
+        if posted is None:
+            posted = []
+        monkeypatch.setattr(
+            ch, "_hook_api_post",
+            lambda url, headers, json_data=None: posted.append((url, json_data)) or {},
+        )
+        data = json.dumps({
+            "session_id": "deleg-sess", "agent_id": "sub-abc",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo hi", "description": description},
+        })
+        return runner.invoke(cli, ["claude-hook", "PreToolUse"], input=data)
+
+    @staticmethod
+    def _decision(result):
+        assert result.exit_code == 0
+        if not result.output.strip():
+            return None
+        return json.loads(result.output).get("hookSpecificOutput", {}).get("permissionDecision")
+
+    def test_subagent_can_reference_parents_started_task(self, runner, monkeypatch):
+        posted = []
+        result = self._invoke(runner, monkeypatch, "do parent work Task#10", posted)
+        assert self._decision(result) != "deny"
+        # Execution log lands on the parent's task, attributed to the subagent.
+        url, payload = posted[0]
+        assert "/tasks/10/new_comment" in url
+        assert payload["as_user"] == self.SUB["username"]
+
+    def test_subagent_own_task_still_accepted(self, runner, monkeypatch):
+        own = [{"id": 20, "title": "sub work", "status": "STARTED", "importance": 0,
+                "assignee_id": 2}]
+        result = self._invoke(runner, monkeypatch, "x Task#20", sub_tasks=own)
+        assert self._decision(result) != "deny"
+
+    def test_subagent_unknown_task_still_denied(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, "x Task#99")
+        assert self._decision(result) == "deny"
+
+    def test_shared_unassigned_task_deduplicated(self, runner, monkeypatch):
+        # An unassigned task shows up in both users' task lists; the merge must
+        # not duplicate it (active_by_id stays consistent).
+        shared = [{"id": 10, "title": "parent work", "status": "STARTED", "importance": 0,
+                   "assignee_id": None}]
+        result = self._invoke(runner, monkeypatch, "x Task#10", sub_tasks=shared)
+        assert self._decision(result) != "deny"
 
 
 class TestClaudeHookStop:
