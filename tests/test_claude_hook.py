@@ -126,8 +126,9 @@ class TestClaudeHookPreToolUse:
 
 
 class TestPreToolUseTaskPlannerChaining:
-    """The TaskPlanner bypass allows pipes and redirections but not command
-    sequencing — sequencing could smuggle an arbitrary command past the gate."""
+    """The TaskPlanner bypass allows redirections but not pipes (output must be
+    read in full — #550) or command sequencing (which could smuggle an
+    arbitrary command past the gate)."""
 
     def _invoke(self, runner, command):
         data = json.dumps({
@@ -153,9 +154,6 @@ class TestPreToolUseTaskPlannerChaining:
         assert self._denied(self._invoke(runner, 'TaskPlanner add-task --title "a && b"')) is None
 
     @pytest.mark.parametrize("command", [
-        "TaskPlanner list | grep x",
-        "TaskPlanner list | grep x | wc -l",
-        "TaskPlanner list |& cat",
         "TaskPlanner list > out.txt",
         "TaskPlanner list >> out.txt",
         "TaskPlanner list 2> err.txt",
@@ -166,8 +164,9 @@ class TestPreToolUseTaskPlannerChaining:
         'TaskPlanner add-comment 42 -m "line1\nline2\n- bullet"',
         'TaskPlanner add-comment 42 -m "use `code` and `x` here"',
         'TaskPlanner add-task --title "a && b; c"',
+        'TaskPlanner add-comment 42 -m "pipe | in prose"',  # quoted pipe is fine
     ])
-    def test_pipes_redirects_and_multiline_markdown_pass(self, runner, command):
+    def test_redirects_and_multiline_markdown_pass(self, runner, command):
         assert self._denied(self._invoke(runner, command)) is None
 
     @pytest.mark.parametrize("command", [
@@ -175,16 +174,20 @@ class TestPreToolUseTaskPlannerChaining:
         "TaskPlanner list || true",
         "TaskPlanner list; echo hi",
         "TaskPlanner edit 5 --status DONE &",
+        # Pipes filter output away; the agent must read it in full (#550).
+        "TaskPlanner list | grep x",
+        "TaskPlanner list | grep x | wc -l",
+        "TaskPlanner list |& cat",
         "TaskPlanner list | grep x && rm -rf /",
         "TaskPlanner list $(rm -rf /)",       # unquoted command substitution
         "TaskPlanner list `rm -rf /`",        # top-level backtick substitution
         "TaskPlanner edit 5\nrm -rf /",       # top-level newline separator
         'TaskPlanner add-comment 1 -m "q1\nq2"\nrm -rf /',  # quoted nl + top-level nl
     ])
-    def test_sequencing_denied(self, runner, command):
+    def test_pipes_and_sequencing_denied(self, runner, command):
         reason = self._denied(self._invoke(runner, command))
         assert reason is not None
-        assert "Command sequencing is not allowed" in reason
+        assert "not allowed for TaskPlanner commands" in reason
 
     def test_lowercase_sequencing_denied(self, runner):
         assert self._denied(self._invoke(runner, "taskplanner list && rm -rf /")) is not None
@@ -197,13 +200,11 @@ class TestHasShellChaining:
         "TaskPlanner list",
         'TaskPlanner add-task --title "a && b; c"',
         "TaskPlanner edit 5 --status DONE",
-        # Pipes and redirections are allowed.
-        "TaskPlanner list | cat",
-        "TaskPlanner list | grep x | wc -l",
-        "TaskPlanner list |& cat",
+        # Redirections are allowed (pipes are not — #550).
         "TaskPlanner list > out.txt",
         "TaskPlanner list 2>&1",
         "TaskPlanner list < in.txt",
+        'TaskPlanner add-comment 1 -m "pipe | in prose"',
         # Quoted command substitution / newlines / backticks (multi-line markdown).
         "TaskPlanner add-comment 42 -m \"$(cat <<'EOF'\n## H\n- `c`\nEOF\n)\"",
         'TaskPlanner add-comment 1 -m "line\n`code`\nmore"',
@@ -222,6 +223,8 @@ class TestHasShellChaining:
         "TaskPlanner list || echo",
         "TaskPlanner list; echo",
         "TaskPlanner list & ",
+        "TaskPlanner list | cat",         # pipes filter output away (#550)
+        "TaskPlanner list |& cat",
         "TaskPlanner list | cat && echo",
         "echo $(TaskPlanner list)",
         "TaskPlanner list $(rm -rf /)",   # unquoted command substitution

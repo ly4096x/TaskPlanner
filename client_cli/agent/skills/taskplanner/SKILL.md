@@ -157,11 +157,11 @@ In Claude Code sessions a PreToolUse hook gates Bash/Edit/Write:
   A delegated **subagent** may also reference the session main agent's
   STARTED tasks — no need to create a mirror task.
 - **TaskPlanner commands** always pass without a STARTED task, but must be a
-  single invocation: no top-level `;` `&&` `||` `&`, subshells, or unquoted
-  command substitution. Pipes (`|`), redirections (`>`, `>>`, `2>&1`, ...),
-  and quoted multi-line values — including the `-m "$(cat <<'EOF' ... EOF)"`
-  Markdown pattern — are allowed. Split sequenced commands into separate
-  Bash calls.
+  single invocation: no pipes (`|` — read the full output instead of
+  filtering it), no top-level `;` `&&` `||` `&`, subshells, or unquoted
+  command substitution. Redirections (`>`, `>>`, `2>&1`, ...) and quoted
+  multi-line values — including the `-m "$(cat <<'EOF' ... EOF)"` Markdown
+  pattern — are allowed. Split sequenced commands into separate Bash calls.
 - **Stop** is blocked while you still have NEW/STARTED tasks — resolve them
   or hand them back to the user (see above).
 

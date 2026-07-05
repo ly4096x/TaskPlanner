@@ -339,15 +339,16 @@ def _handle_session_start(ctx, url, headers, data, session_id, agent_id):
         })
 
 
-# Operator tokens that sequence, background, or spawn an *independent* command.
-# These stay blocked so the TaskPlanner bypass can't smuggle an unrelated
-# command past the task gate (e.g. ``TaskPlanner list && rm -rf``). Pipes (``|``,
-# ``|&``) and redirections (``>``, ``>>``, ``<``, ``2>&1``, ...) are allowed —
-# they wire up a single command's I/O rather than chaining a new command. shlex
-# with punctuation_chars isolates each run of operators into its own token, so
-# e.g. ``2>&1`` yields the ``>&`` token (allowed) while ``&`` alone (background)
-# and ``&&`` (sequencing) are distinct tokens that stay blocked.
-_DENIED_OPERATORS = {";", "&", "&&", "||", "(", ")"}
+# Operator tokens that sequence, background, pipe, or spawn an *independent*
+# command. Sequencing stays blocked so the TaskPlanner bypass can't smuggle an
+# unrelated command past the task gate (e.g. ``TaskPlanner list && rm -rf``);
+# pipes (``|``, ``|&``) are blocked so output can't be filtered away — the
+# agent must read full TaskPlanner output, including recent comments (#550).
+# Redirections (``>``, ``>>``, ``<``, ``2>&1``, ...) remain allowed. shlex with
+# punctuation_chars isolates each run of operators into its own token, so e.g.
+# ``2>&1`` yields the ``>&`` token (allowed) while ``|`` and ``&`` alone are
+# distinct denied tokens.
+_DENIED_OPERATORS = {";", "&", "&&", "||", "|", "|&", "(", ")"}
 
 # Quoted-delimiter heredoc opener: ``<<'WORD'`` / ``<<"WORD"`` (optionally ``<<-``).
 # We only strip quoted-delimiter heredocs — the documented pattern uses
@@ -403,15 +404,15 @@ def _toplevel_has(command, targets):
 
 
 def _has_shell_chaining(command):
-    """True if `command` sequences, backgrounds, or spawns another top-level command.
+    """True if `command` sequences, backgrounds, pipes, or spawns another top-level command.
 
-    Pipes and redirections are permitted, and so is command substitution inside a
-    quoted argument together with newlines inside quotes — the taskplanner skill
+    Redirections are permitted, and so is command substitution inside a quoted
+    argument together with newlines inside quotes — the taskplanner skill
     documents passing multi-line Markdown as ``-m "$(cat <<'EOF' ... EOF)"``.
-    Blocked: top-level command sequencing (``;`` ``&&`` ``||``), backgrounding
-    (``&``), subshells / unquoted command substitution (``(...)`` / backticks) and
-    a top-level newline. Operators, substitutions and newlines inside quotes are
-    ignored.
+    Blocked: pipes (``|`` ``|&``), top-level command sequencing (``;`` ``&&``
+    ``||``), backgrounding (``&``), subshells / unquoted command substitution
+    (``(...)`` / backticks) and a top-level newline. Operators, substitutions
+    and newlines inside quotes are ignored.
     """
     # Drop heredoc bodies first — their arbitrary content would otherwise fool
     # the quote-based scan below (leaving the residual with balanced quotes).
@@ -441,18 +442,19 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
 
     command = tool_input.get("command", "")
 
-    # Always allow TaskPlanner CLI commands — pipes and redirections included,
-    # but not command sequencing. Sequencing (e.g. `TaskPlanner list && rm -rf /`)
-    # would smuggle an arbitrary command past the task gate, so deny it instead
-    # of bypassing.
+    # Always allow TaskPlanner CLI commands — redirections included, but not
+    # pipes (output must be read in full, not filtered — #550) and not command
+    # sequencing (e.g. `TaskPlanner list && rm -rf /` would smuggle an
+    # arbitrary command past the task gate), so deny those instead of bypassing.
     if tool_name == "Bash" and (
         command.strip().startswith("TaskPlanner ") or command.strip().startswith("taskplanner ")
     ):
         if _has_shell_chaining(command):
             _hook_deny(
-                "Command sequencing is not allowed for TaskPlanner commands: no "
-                "top-level ; && || & or subshells. Pipes (|), redirections "
-                "(>, >>, 2>&1, ...) and quoted multi-line values — including "
+                "Pipes and command sequencing are not allowed for TaskPlanner "
+                "commands: no | or top-level ; && || & or subshells — read the "
+                "full output instead of filtering it. Redirections (>, >>, 2>&1, "
+                "...) and quoted multi-line values — including "
                 "-m \"$(cat <<'EOF' ... EOF)\" for Markdown — are allowed. Split "
                 "sequenced commands into separate Bash calls."
             )
