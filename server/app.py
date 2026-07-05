@@ -727,7 +727,9 @@ async def upload_file(
     user: dict = Depends(require_auth),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    _check_board_write(conn, user, board_id)
+    # Attaching to a task modifies it — gate on the granular tasks.edit action,
+    # consistent with the edit endpoint (not the legacy boards.write, see #686).
+    _check_board_action(conn, user, board_id, "tasks.edit")
     task = crud.get_task(conn, board_id=board_id, task_id=task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -747,8 +749,14 @@ async def upload_comment_file(
     user: dict = Depends(require_auth),
     conn: sqlite3.Connection = Depends(get_db),
 ):
-    _check_board_write(conn, user, board_id)
+    # Attaching to a comment is part of commenting: mirror the comment permission
+    # (task creator may always, otherwise tasks.post_comment) rather than the
+    # legacy boards.write, so `add-comment -f` can't partial-write (see #686).
+    _require_board(conn, board_id)
     task = crud.get_task(conn, board_id=board_id, task_id=task_id)
+    is_creator = task is not None and task.get("creator_id") == user["id"]
+    if not is_creator:
+        _check_board_action(conn, user, board_id, "tasks.post_comment")
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     comment = crud.get_comment(conn, comment_id)

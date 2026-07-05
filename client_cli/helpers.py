@@ -2,6 +2,7 @@
 
 import os
 import re
+from typing import NoReturn
 
 import click
 import httpx
@@ -145,7 +146,7 @@ def _authed_post(ctx, url, **kwargs):
     return httpx.post(url, **kwargs)
 
 
-def handle_request_error(e: Exception):
+def handle_request_error(e: Exception) -> NoReturn:
     if isinstance(e, httpx.ConnectError):
         click.echo(
             click.style("Error: Could not connect to server. Is it running?", fg="red"), err=True

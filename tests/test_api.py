@@ -1022,3 +1022,114 @@ class TestCommentPermissions:
         body = resp.json()
         assert body["comment_type"] == "EXECUTION_LOG"
         assert body["commenter_username"] == agent_user["username"]
+
+
+class TestAttachmentPermissions:
+    """Uploads must be gated by the granular action of what they attach to —
+    comment uploads by tasks.post_comment (creator bypass included), task
+    uploads by tasks.edit — not legacy boards.write, or `add-comment -f`
+    partial-writes: text lands, attachment 403s (#686)."""
+
+    # Mirrors the hook-created 'agent' role but WITHOUT boards.write.
+    AGENT_PERMS = ["boards.read", "tasks.read", "tasks.create", "tasks.edit", "tasks.post_comment"]
+
+    def _user_client(self, client, db_conn, username, perms):
+        role = crud.create_role(db_conn, f"role_{username}", permissions=perms)
+        user = crud.create_user(db_conn, f"{username}-ext", username.title(), username=username)
+        crud.update_user(db_conn, user["id"], role_id=role["id"])
+        raw, token_hash = auth.generate_token()
+        crud.create_access_token(db_conn, user["id"], token_hash, label="test")
+        return user, AuthClient(client, {"Authorization": f"Bearer {raw}"})
+
+    def _comment(self, who, board_id, task_id, content="c"):
+        resp = who.post(
+            f"/api/v1/board/{board_id}/tasks/{task_id}/new_comment",
+            json={"content": content},
+        )
+        assert resp.status_code == 201
+        return resp.json()
+
+    def test_comment_upload_allowed_without_boards_write(self, client, aclient, db_conn):
+        # The exact #686 repro: agent-like role, text comment succeeds, the
+        # attachment upload must succeed too instead of 403ing.
+        board = _create_board(aclient, name="AP1")
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        _, agent_client = self._user_client(client, db_conn, "apagent1", self.AGENT_PERMS)
+        comment = self._comment(agent_client, board["id"], task["id"])
+        resp = agent_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/comments/{comment['id']}/upload",
+            files={"file": ("shot.png", b"\x89PNG fakebytes", "image/png")},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["original_name"] == "shot.png"
+
+    def test_comment_upload_denied_without_post_comment(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="AP2")
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        comment = self._comment(aclient, board["id"], task["id"])
+        _, reader_client = self._user_client(
+            client, db_conn, "apreader2", ["boards.read", "tasks.read"]
+        )
+        resp = reader_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/comments/{comment['id']}/upload",
+            files={"file": ("x.txt", b"data", "text/plain")},
+        )
+        assert resp.status_code == 403
+
+    def test_creator_can_attach_to_comment_on_own_task(self, client, aclient, db_conn):
+        # Creator bypass must extend to comment attachments, matching new_comment.
+        board = _create_board(aclient, name="AP3")
+        _, creator_client = self._user_client(
+            client, db_conn, "apcreator3", ["boards.read", "tasks.read", "tasks.create"]
+        )
+        task = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "Mine"}
+        ).json()
+        comment = self._comment(creator_client, board["id"], task["id"])
+        resp = creator_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/comments/{comment['id']}/upload",
+            files={"file": ("log.txt", b"trace", "text/plain")},
+        )
+        assert resp.status_code == 201
+
+    def test_comment_upload_403_before_404_for_unprivileged(self, client, aclient, db_conn):
+        # Preserve the 403-before-404 ordering on the upload path too.
+        board = _create_board(aclient, name="AP4")
+        _, reader_client = self._user_client(
+            client, db_conn, "apreader4", ["boards.read", "tasks.read"]
+        )
+        resp = reader_client.post(
+            f"/api/v1/board/{board['id']}/tasks/424242/comments/1/upload",
+            files={"file": ("x.txt", b"data", "text/plain")},
+        )
+        assert resp.status_code == 403
+
+    def test_task_upload_allowed_with_tasks_edit(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="AP5")
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        _, agent_client = self._user_client(client, db_conn, "apagent5", self.AGENT_PERMS)
+        resp = agent_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/upload",
+            files={"file": ("a.txt", b"data", "text/plain")},
+        )
+        assert resp.status_code == 201
+
+    def test_task_upload_denied_without_tasks_edit(self, client, aclient, db_conn):
+        board = _create_board(aclient, name="AP6")
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "T"}
+        ).json()
+        _, reader_client = self._user_client(
+            client, db_conn, "apreader6", ["boards.read", "tasks.read"]
+        )
+        resp = reader_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/upload",
+            files={"file": ("a.txt", b"data", "text/plain")},
+        )
+        assert resp.status_code == 403

@@ -401,18 +401,27 @@ def add_comment(ctx, task_id, message, files, comment_type, as_user):
         comment_id = comment["id"]
         click.echo(f"Comment {comment_id} added to task {task_id}.")
 
-        # Upload attachments to the comment
-        for filepath in files:
-            filepath = os.path.abspath(filepath)
-            filename = os.path.basename(filepath)
+    except (httpx.ConnectError, httpx.HTTPStatusError) as e:
+        handle_request_error(e)
+
+    # Upload attachments to the comment. The comment already exists here, so a
+    # failure is a partial write — say so explicitly rather than emitting a bare
+    # error that looks like the whole command failed (task #686).
+    for filepath in files:
+        filepath = os.path.abspath(filepath)
+        filename = os.path.basename(filepath)
+        try:
             with open(filepath, "rb") as fh:
                 resp = _authed_post(ctx,
                     f"{url}/api/v1/board/{board}/tasks/{task_id}/comments/{comment_id}/upload",
                     files={"file": (filename, fh)},
                 )
             resp.raise_for_status()
-            att = resp.json()
-            click.echo(f"Uploaded {filename} (attachment #{att['id']})")
-
-    except (httpx.ConnectError, httpx.HTTPStatusError) as e:
-        handle_request_error(e)
+        except (httpx.ConnectError, httpx.HTTPStatusError) as e:
+            click.echo(
+                f"Comment {comment_id} was posted, but attaching {filename} failed:",
+                err=True,
+            )
+            handle_request_error(e)
+        att = resp.json()
+        click.echo(f"Uploaded {filename} (attachment #{att['id']})")
