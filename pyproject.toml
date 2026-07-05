@@ -1,6 +1,6 @@
 [project]
 name = "task-planner"
-version = "0.3.14"
+version = "0.3.15"
 description = "Task planning system with FastAPI backend and CLI frontend"
 requires-python = ">=3.13"
 dependencies = [
