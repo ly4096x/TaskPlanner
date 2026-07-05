@@ -3,17 +3,102 @@
 
 WorktreeCreate: creates a jj workspace under ~/.vcs_workspaces/<name>
 WorktreeRemove: removes the jj workspace and cleans up the directory
-SubagentStop:   blocks subagent if cwd has uncommitted changes
+Stop/SubagentStop: blocks if cwd has uncommitted changes, UNLESS the latest
+    assistant message has a line starting "I'm stopping with uncommitted
+    changes because: <reason>" (case-insensitive, reason required) — an
+    explicit opt-out to stop dirty.
 
 If cwd is not a jj or git repo, worktree hooks exit with code 1.
 """
 
 import json
 import os
+import re
 import subprocess
 import sys
+import time
 
 WORKSPACES_DIR = os.path.expanduser("~/.vcs_workspaces")
+
+# Explicit opt-out: when the assistant's final message says this, allow the
+# turn to end with an uncommitted (dirty) working tree. A reason is required
+# (at least one non-space char after the colon).
+#
+# Anchored to the start of a line (MULTILINE) so the opt-out only fires when
+# the assistant writes the directive as its own line — not when a message
+# merely quotes or discusses the phrase, and not from this hook's own block
+# message (which the harness echoes back into the chat). The apostrophe is
+# matched loosely to tolerate a straight ' or a curly ’.
+DIRTY_BYPASS_RE = re.compile(
+    r"^\s*i['’]m stopping with uncommitted changes because:\s*\S",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def scan_assistant(transcript_path):
+    """Scan the transcript JSONL. Return (count, last_text): the number of
+    assistant messages that carried text, and the most recent such text
+    (or (0, '') if unavailable)."""
+    if not transcript_path or not os.path.isfile(transcript_path):
+        return 0, ""
+    count, last_text = 0, ""
+    try:
+        with open(transcript_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    evt = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if evt.get("type") != "assistant":
+                    continue
+                content = evt.get("message", {}).get("content", [])
+                if isinstance(content, str):
+                    text = content
+                elif isinstance(content, list):
+                    text = "\n".join(
+                        b.get("text", "")
+                        for b in content
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    )
+                else:
+                    text = ""
+                if text:
+                    count += 1
+                    last_text = text
+    except OSError:
+        return count, last_text
+    return count, last_text
+
+
+def resolve_final_assistant_text(transcript_path, settle=1.5, interval=0.1):
+    """The Stop hook can fire before the turn's final assistant message has been
+    flushed to the transcript, so a naive read returns the *previous* message
+    and misses a just-written opt-out line. Wait briefly for the in-flight
+    message to land: short-circuit the moment a bypass line is visible, else
+    wait until a newer assistant message appears (or `settle` elapses) and use
+    that. On a genuine block this only costs the time until the final message
+    flushes (usually well under `settle`)."""
+    count0, text = scan_assistant(transcript_path)
+    if DIRTY_BYPASS_RE.search(text):
+        return text
+    deadline = time.monotonic() + settle
+    while time.monotonic() < deadline:
+        time.sleep(interval)
+        count, latest = scan_assistant(transcript_path)
+        if count != count0:
+            return latest
+        text = latest
+    return text
+
+
+def dirty_bypass_requested(data):
+    """True if the assistant explicitly opted out of the clean-tree check."""
+    return bool(
+        DIRTY_BYPASS_RE.search(resolve_final_assistant_text(data.get("transcript_path")))
+    )
 
 
 def is_jj_repo(path):
@@ -94,6 +179,10 @@ def block_stop_without_commit(data):
 
     dirty, description = has_uncommitted_changes(cwd)
     if dirty:
+        if dirty_bypass_requested(data):
+            # Assistant said "Leaving workspace dirty because: <reason>" —
+            # honor the explicit opt-out and allow the turn to end.
+            return
         print(
             json.dumps(
                 {
@@ -103,6 +192,11 @@ def block_stop_without_commit(data):
                         "You have uncommitted work. Before stopping:\n"
                         "1. Restart your task (TaskPlanner edit <id> --status STARTED)\n"
                         "2. Commit your changes (jj commit -m '...' or git add -A && git commit -m '...')\n"
+                        "\n"
+                        "Or, if leaving the tree dirty is intentional, include a line "
+                        "starting with:\n"
+                        "    I'm stopping with uncommitted changes because: <reason>\n"
+                        "and this check will be skipped.\n"
                     ),
                 }
             )
