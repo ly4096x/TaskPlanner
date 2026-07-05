@@ -6,7 +6,7 @@ user-invocable: false
 
 # TaskPlanner CLI Reference
 
-`TaskPlanner` is installed in PATH (`~/.local/bin`). Do NOT use `uv run` to invoke it. The Claude Code hook exports `TASKPLANNER_USER_ACCESS_TOKEN` (auth) and `TASKPLANNER_USERNAME` (display) into the session — do not set them manually.
+`TaskPlanner` is installed in PATH (`~/.local/bin`). Do NOT use `uv run` to invoke it. The Claude Code hook exports `TASKPLANNER_USER_ACCESS_TOKEN` (auth), `TASKPLANNER_USERNAME` (display), and `TASKPLANNER_BOARD_ID` (pinned to the session's originating board, stable across resume) into the session — do not set them manually.
 
 ## Top-level options
 
@@ -146,6 +146,24 @@ When you need more information or input from the user before you can continue a 
    ```
 
 This ensures the user sees what's blocking progress and can respond.
+
+## Claude Code hook integration (Bash gate)
+
+In Claude Code sessions a PreToolUse hook gates Bash/Edit/Write:
+
+- **Non-TaskPlanner Bash commands** require a STARTED task, and the Bash
+  `description` must end with ` Task#<id>` referencing one of your STARTED
+  tasks; accepted commands are logged on that task as EXECUTION_LOG comments.
+  A delegated **subagent** may also reference the session main agent's
+  STARTED tasks — no need to create a mirror task.
+- **TaskPlanner commands** always pass without a STARTED task, but must be a
+  single invocation: no top-level `;` `&&` `||` `&`, subshells, or unquoted
+  command substitution. Pipes (`|`), redirections (`>`, `>>`, `2>&1`, ...),
+  and quoted multi-line values — including the `-m "$(cat <<'EOF' ... EOF)"`
+  Markdown pattern — are allowed. Split sequenced commands into separate
+  Bash calls.
+- **Stop** is blocked while you still have NEW/STARTED tasks — resolve them
+  or hand them back to the user (see above).
 
 ## Filter syntax (`-f` / `--filter`)
 
