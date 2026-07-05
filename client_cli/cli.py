@@ -48,22 +48,74 @@ def _find_env_board_id() -> int | None:
     return None
 
 
+def _resolve_board_by_name(ctx: click.Context, name: str) -> int:
+    """Resolve a board name (TASKPLANNER_BOARD_NAME) to its id via the API."""
+    url = get_server_url(ctx)
+    try:
+        resp = httpx.get(f"{url}/api/v1/boards", headers=get_auth_headers(ctx), timeout=5)
+        resp.raise_for_status()
+        boards = resp.json()
+    except Exception:
+        click.echo(
+            click.style(
+                f"Error: cannot resolve TASKPLANNER_BOARD_NAME={name!r}: failed to list boards from {url}.",
+                fg="red",
+            ),
+            err=True,
+        )
+        raise SystemExit(1)
+    matches = [b for b in boards if b.get("name") == name]
+    if len(matches) == 1:
+        return matches[0]["id"]
+    if not matches:
+        known = ", ".join(sorted(b.get("name", "?") for b in boards)) or "(none)"
+        click.echo(
+            click.style(
+                f"Error: no board named {name!r} (TASKPLANNER_BOARD_NAME). Boards: {known}",
+                fg="red",
+            ),
+            err=True,
+        )
+    else:
+        ids = ", ".join(str(b["id"]) for b in matches)
+        click.echo(
+            click.style(
+                f"Error: multiple boards named {name!r} (ids {ids}); set TASKPLANNER_BOARD_ID instead.",
+                fg="red",
+            ),
+            err=True,
+        )
+    raise SystemExit(1)
+
+
 def get_board_id(ctx: click.Context) -> int:
-    """Get board ID from --board flag, TASKPLANNER_BOARD_ID env var, or .env file."""
+    """Get board ID from --board flag, TASKPLANNER_BOARD_ID / TASKPLANNER_BOARD_NAME env vars, or .env file."""
     board = ctx.obj.get("board")
     if board is None:
         env_board = os.environ.get("TASKPLANNER_BOARD_ID")
+        env_board_name = os.environ.get("TASKPLANNER_BOARD_NAME")
         if env_board:
+            if env_board_name:
+                click.echo(
+                    click.style(
+                        "Warning: both TASKPLANNER_BOARD_ID and TASKPLANNER_BOARD_NAME are set; using TASKPLANNER_BOARD_ID.",
+                        fg="yellow",
+                    ),
+                    err=True,
+                )
             try:
                 board = int(env_board)
             except ValueError:
                 pass
+        elif env_board_name:
+            board = _resolve_board_by_name(ctx, env_board_name)
+            ctx.obj["board"] = board  # cache: skip re-resolving within this invocation
     if board is None:
         board = _find_env_board_id()
     if board is None:
         click.echo(
             click.style(
-                "Error: --board/-b option, TASKPLANNER_BOARD_ID env var, or TASKPLANNER_BOARD_ID in .env is required.",
+                "Error: --board/-b option, TASKPLANNER_BOARD_ID / TASKPLANNER_BOARD_NAME env var, or TASKPLANNER_BOARD_ID in .env is required.",
                 fg="red",
             ),
             err=True,

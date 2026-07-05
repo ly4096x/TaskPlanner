@@ -525,6 +525,7 @@ def _validate_status_transition(
     current_task: dict,
     new_status: str,
     effective_assignee_id: int | None,
+    effective_blockers: list[int] | None = None,
 ) -> None:
     """Validate a status transition, raising ValueError on invalid transitions."""
     from server.schema import (  # pyright: ignore[reportMissingImports]
@@ -551,7 +552,14 @@ def _validate_status_transition(
     conditions = TRANSITION_CONDITIONS.get(new_status, {})
 
     if conditions.get("require_blockers"):
-        current_blockers = current_task.get("blockers", [])
+        # effective_blockers lets one edit call set blockers and BLOCKED
+        # together — validate against the blockers being applied, not the
+        # (possibly empty) stored ones (#745).
+        current_blockers = (
+            effective_blockers
+            if effective_blockers is not None
+            else current_task.get("blockers", [])
+        )
         if not current_blockers:
             raise ValueError(
                 "Cannot set status to BLOCKED without blockers. Add blockers first."
@@ -652,7 +660,8 @@ def edit_task_fields(
     # --- Status ---
     if status is not None and status != current["status"]:
         _validate_status_transition(
-            conn, current, status, cast(int | None, effective_assignee_id)
+            conn, current, status, cast(int | None, effective_assignee_id),
+            effective_blockers=blockers,
         )
 
         conn.execute(

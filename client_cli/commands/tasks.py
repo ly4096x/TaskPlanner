@@ -305,6 +305,42 @@ def show_task(ctx, task_id, template):
     print_task_detail(url, board, task, headers=get_auth_headers(ctx))
 
 
+def _resolve_blockers_arg(ctx, url, board, task_id, blockers_arg):
+    """Parse the edit --blockers value into the full blocker id list.
+
+    '123,456' replaces the whole set, '+123,-456' adds/removes against the
+    task's current blockers, '' clears all. Mixing the two styles is an error.
+    """
+    tokens = [t.strip() for t in blockers_arg.split(",") if t.strip()]
+    signed = [t for t in tokens if t[0] in "+-"]
+    if signed and len(signed) != len(tokens):
+        raise click.BadParameter(
+            "cannot mix +id/-id modify style with plain replace-all ids",
+            param_hint="--blockers",
+        )
+    try:
+        if not signed:
+            return [int(t) for t in tokens]
+        resp = _authed_get(ctx, f"{url}/api/v1/board/{board}/tasks/{task_id}")
+        resp.raise_for_status()
+        result = list(resp.json().get("blockers", []))
+        for t in tokens:
+            tid = int(t[1:])
+            if t[0] == "+":
+                if tid not in result:
+                    result.append(tid)
+            else:
+                result = [b for b in result if b != tid]
+        return result
+    except ValueError:
+        raise click.BadParameter(
+            f"expected task ids like '123,456' or '+123,-456', got {blockers_arg!r}",
+            param_hint="--blockers",
+        )
+    except (httpx.ConnectError, httpx.HTTPStatusError) as e:
+        handle_request_error(e)
+
+
 @click.command("edit")
 @click.argument("task_id", type=int)
 @click.option("--status", default=None, type=click.Choice(VALID_STATUSES), help="Set status")
@@ -317,9 +353,11 @@ def show_task(ctx, task_id, template):
 @click.option("--importance", default=None, type=int, help="Set importance 0-100")
 @click.option("--effort", default=None, type=int, help="Set estimated effort")
 @click.option("--parent", "parent_task_id", default=None, type=int, help="Set parent task ID (0 to clear)")
+@click.option("--blockers", default=None,
+              help="Blocker task IDs: '123,456' replaces all, '+123,-456' adds/removes, '' clears")
 @click.pass_context
-def edit_task_cmd(ctx, task_id, status, status_reason, assignee, title, description, importance, effort, parent_task_id):
-    """Edit a task (status, assignee, title, description, importance, effort, parent)."""
+def edit_task_cmd(ctx, task_id, status, status_reason, assignee, title, description, importance, effort, parent_task_id, blockers):
+    """Edit a task (status, assignee, title, description, importance, effort, parent, blockers)."""
     url = get_server_url(ctx)
     board = get_board_id(ctx)
     body: dict = {}
@@ -339,9 +377,11 @@ def edit_task_cmd(ctx, task_id, status, status_reason, assignee, title, descript
         body["estimated_effort"] = effort
     if parent_task_id is not None:
         body["parent_task_id"] = parent_task_id if parent_task_id != 0 else None
+    if blockers is not None:
+        body["blockers"] = _resolve_blockers_arg(ctx, url, board, task_id, blockers)
     if not body:
         click.echo(
-            "No changes specified. Use --status, --assignee, --title, --description, --importance, --effort, or --parent."
+            "No changes specified. Use --status, --assignee, --title, --description, --importance, --effort, --parent, or --blockers."
         )
         raise SystemExit(1)
     try:
@@ -366,6 +406,8 @@ def edit_task_cmd(ctx, task_id, status, status_reason, assignee, title, descript
             changes.append(f"effort={effort}")
         if parent_task_id is not None:
             changes.append(f"parent={parent_task_id}")
+        if blockers is not None:
+            changes.append(f"blockers={task.get('blockers', body['blockers'])}")
         click.echo(f'Task#{task_id}: "{task.get("title", "")}" — {", ".join(changes)}')
 
         # When starting a task, show full task detail (without attachments)

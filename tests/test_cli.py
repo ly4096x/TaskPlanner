@@ -240,6 +240,74 @@ class TestBoardFromEnvFile:
         assert "/api/v1/board/5/tasks" in call_url
 
 
+class TestBoardNameEnv:
+    """TASKPLANNER_BOARD_NAME resolves a board by name via the API (#746);
+    TASKPLANNER_BOARD_ID wins with a warning when both are set."""
+
+    BOARDS = [{"id": 3, "name": "Dev Board"}, {"id": 4, "name": "Ops"}]
+
+    @pytest.fixture(autouse=True)
+    def _clear_board_env(self, monkeypatch):
+        monkeypatch.delenv("TASKPLANNER_BOARD_ID", raising=False)
+        monkeypatch.delenv("TASKPLANNER_BOARD_NAME", raising=False)
+
+    def _mock_get(self, boards=None, tasks=None):
+        def side_effect(url, *args, **kwargs):
+            if "/api/v1/boards" in url:
+                return mock_response(200, boards if boards is not None else self.BOARDS)
+            return mock_response(200, tasks if tasks is not None else [SAMPLE_TASK])
+
+        return side_effect
+
+    @patch("client_cli.cli.httpx.get")
+    def test_board_name_resolved(self, mock_get, runner):
+        mock_get.side_effect = self._mock_get()
+        result = runner.invoke(cli, ["list"], env={"TASKPLANNER_BOARD_NAME": "Dev Board"})
+        assert result.exit_code == 0
+        urls = [c.args[0] for c in mock_get.call_args_list]
+        assert any("/api/v1/board/3/tasks" in u for u in urls)
+
+    @patch("client_cli.cli.httpx.get")
+    def test_board_id_wins_with_warning(self, mock_get, runner):
+        mock_get.side_effect = self._mock_get()
+        result = runner.invoke(
+            cli, ["list"],
+            env={"TASKPLANNER_BOARD_ID": "4", "TASKPLANNER_BOARD_NAME": "Dev Board"},
+        )
+        assert result.exit_code == 0
+        assert "using TASKPLANNER_BOARD_ID" in result.output
+        urls = [c.args[0] for c in mock_get.call_args_list]
+        assert any("/api/v1/board/4/tasks" in u for u in urls)
+        # Name resolution must not even be attempted.
+        assert not any("/api/v1/boards" in u for u in urls)
+
+    @patch("client_cli.cli.httpx.get")
+    def test_unknown_board_name_errors(self, mock_get, runner):
+        mock_get.side_effect = self._mock_get()
+        result = runner.invoke(cli, ["list"], env={"TASKPLANNER_BOARD_NAME": "Nope"})
+        assert result.exit_code == 1
+        assert "no board named 'Nope'" in result.output
+
+    @patch("client_cli.cli.httpx.get")
+    def test_ambiguous_board_name_errors(self, mock_get, runner):
+        dup = [{"id": 3, "name": "Dev Board"}, {"id": 9, "name": "Dev Board"}]
+        mock_get.side_effect = self._mock_get(boards=dup)
+        result = runner.invoke(cli, ["list"], env={"TASKPLANNER_BOARD_NAME": "Dev Board"})
+        assert result.exit_code == 1
+        assert "multiple boards named" in result.output
+
+    @patch("client_cli.cli.httpx.get")
+    def test_flag_beats_board_name(self, mock_get, runner):
+        mock_get.side_effect = self._mock_get()
+        result = runner.invoke(
+            cli, ["-b", "7", "list"], env={"TASKPLANNER_BOARD_NAME": "Dev Board"}
+        )
+        assert result.exit_code == 0
+        urls = [c.args[0] for c in mock_get.call_args_list]
+        assert any("/api/v1/board/7/tasks" in u for u in urls)
+        assert not any("/api/v1/boards" in u for u in urls)
+
+
 # --- add-user (global, no board needed) ---
 
 
@@ -505,6 +573,98 @@ class TestEdit:
             env={"TASKPLANNER_USERNAME": "alice"},
         )
         assert result.exit_code == 0
+
+    # --- --blockers (#745) ---
+
+    @patch("client_cli.cli.httpx.get")
+    @patch("client_cli.cli.httpx.post")
+    def test_edit_blockers_replace_style(self, mock_post, mock_get, runner):
+        mock_get.side_effect = mock_get_with_users()
+        mock_post.return_value = mock_response(200, {**SAMPLE_TASK, "blockers": [3, 4]})
+        result = runner.invoke(
+            cli,
+            ["-b", "1", "edit", "1", "--blockers", "3,4"],
+            env={"TASKPLANNER_USERNAME": "alice"},
+        )
+        assert result.exit_code == 0
+        body = mock_post.call_args[1].get("json", {})
+        assert body.get("blockers") == [3, 4]
+        # Replace style needs no extra GET of the task itself.
+        assert not any(
+            "/tasks/1" in c.args[0] for c in mock_get.call_args_list if c.args
+        )
+
+    @patch("client_cli.cli.httpx.get")
+    @patch("client_cli.cli.httpx.post")
+    def test_edit_blockers_modify_style(self, mock_post, mock_get, runner):
+        # SAMPLE_TASK currently has blockers [2]: +5 then -2 -> [5].
+        mock_get.side_effect = mock_get_with_users(data=SAMPLE_TASK)
+        mock_post.return_value = mock_response(200, {**SAMPLE_TASK, "blockers": [5]})
+        result = runner.invoke(
+            cli,
+            ["-b", "1", "edit", "1", "--blockers", "+5,-2"],
+            env={"TASKPLANNER_USERNAME": "alice"},
+        )
+        assert result.exit_code == 0
+        body = mock_post.call_args[1].get("json", {})
+        assert body.get("blockers") == [5]
+
+    @patch("client_cli.cli.httpx.get")
+    @patch("client_cli.cli.httpx.post")
+    def test_edit_blockers_clear_all(self, mock_post, mock_get, runner):
+        mock_get.side_effect = mock_get_with_users()
+        mock_post.return_value = mock_response(200, {**SAMPLE_TASK, "blockers": []})
+        result = runner.invoke(
+            cli,
+            ["-b", "1", "edit", "1", "--blockers", ""],
+            env={"TASKPLANNER_USERNAME": "alice"},
+        )
+        assert result.exit_code == 0
+        body = mock_post.call_args[1].get("json", {})
+        assert body.get("blockers") == []
+
+    @patch("client_cli.cli.httpx.get")
+    @patch("client_cli.cli.httpx.post")
+    def test_edit_blockers_mixed_styles_rejected(self, mock_post, mock_get, runner):
+        mock_get.side_effect = mock_get_with_users()
+        result = runner.invoke(
+            cli,
+            ["-b", "1", "edit", "1", "--blockers", "3,+4"],
+            env={"TASKPLANNER_USERNAME": "alice"},
+        )
+        assert result.exit_code != 0
+        assert "cannot mix" in result.output
+        mock_post.assert_not_called()
+
+    @patch("client_cli.cli.httpx.get")
+    @patch("client_cli.cli.httpx.post")
+    def test_edit_blockers_non_numeric_rejected(self, mock_post, mock_get, runner):
+        mock_get.side_effect = mock_get_with_users()
+        result = runner.invoke(
+            cli,
+            ["-b", "1", "edit", "1", "--blockers", "abc"],
+            env={"TASKPLANNER_USERNAME": "alice"},
+        )
+        assert result.exit_code != 0
+        assert "expected task ids" in result.output
+        mock_post.assert_not_called()
+
+    @patch("client_cli.cli.httpx.get")
+    @patch("client_cli.cli.httpx.post")
+    def test_edit_blockers_with_blocked_status(self, mock_post, mock_get, runner):
+        mock_get.side_effect = mock_get_with_users(data=SAMPLE_TASK)
+        mock_post.return_value = mock_response(
+            200, {**SAMPLE_TASK, "status": "BLOCKED", "blockers": [2, 7]}
+        )
+        result = runner.invoke(
+            cli,
+            ["-b", "1", "edit", "1", "--status", "BLOCKED", "--blockers", "+7"],
+            env={"TASKPLANNER_USERNAME": "alice"},
+        )
+        assert result.exit_code == 0
+        body = mock_post.call_args[1].get("json", {})
+        assert body.get("status") == "BLOCKED"
+        assert body.get("blockers") == [2, 7]
 
 
 # --- add-comment (with -b flag) ---

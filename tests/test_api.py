@@ -364,6 +364,48 @@ class TestTasks:
         assert resp.status_code == 200
         assert resp.json()["blockers"] == [t1["id"]]
 
+    def test_edit_blockers_and_blocked_status_in_one_call(self, aclient):
+        # #745: a dependency discovered mid-work — one edit call must be able
+        # to attach the new blocker AND transition to BLOCKED; the transition
+        # is validated against the blockers being set, not the stored ones.
+        board = _create_board(aclient)
+        user = aclient.post(
+            "/api/v1/users",
+            json={"external_id": "blk-u", "username": "blocku", "display_name": "B"},
+        ).json()
+        blocker = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new", json={"title": "dep"}
+        ).json()
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "work", "assignee_id": user["id"], "status": "STARTED"},
+        ).json()
+        assert task["blockers"] == []
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "BLOCKED", "blockers": [blocker["id"]]},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "BLOCKED"
+        assert body["blockers"] == [blocker["id"]]
+
+    def test_edit_blocked_with_empty_blockers_still_rejected(self, aclient):
+        board = _create_board(aclient)
+        user = aclient.post(
+            "/api/v1/users",
+            json={"external_id": "blk-u2", "username": "blocku2", "display_name": "B"},
+        ).json()
+        task = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "work", "assignee_id": user["id"], "status": "STARTED"},
+        ).json()
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "BLOCKED", "blockers": []},
+        )
+        assert resp.status_code == 422
+
     def test_edit_task_assignee(self, aclient):
         board = _create_board(aclient)
         user = aclient.post(
