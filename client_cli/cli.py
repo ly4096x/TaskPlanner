@@ -95,14 +95,6 @@ def get_board_id(ctx: click.Context) -> int:
         env_board = os.environ.get("TASKPLANNER_BOARD_ID")
         env_board_name = os.environ.get("TASKPLANNER_BOARD_NAME")
         if env_board:
-            if env_board_name:
-                click.echo(
-                    click.style(
-                        "Warning: both TASKPLANNER_BOARD_ID and TASKPLANNER_BOARD_NAME are set; using TASKPLANNER_BOARD_ID.",
-                        fg="yellow",
-                    ),
-                    err=True,
-                )
             try:
                 board = int(env_board)
             except ValueError:
