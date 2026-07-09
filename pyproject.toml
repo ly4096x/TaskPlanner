@@ -35,7 +35,7 @@ packages = ["server", "client_cli", "shared"]
 exclude-newer = "1 week"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "test_worktree_hook.py"]
 
 [tool.ruff]
 line-length = 100

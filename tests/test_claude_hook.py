@@ -125,6 +125,75 @@ class TestClaudeHookPreToolUse:
         assert result.exit_code == 0
 
 
+class TestPreToolUseUngatedCommands:
+    """The exact stop-time time-report command bypasses the task gate entirely
+    (#892/#908): no STARTED task, no Task# suffix, no EXECUTION_LOG. Only the
+    exact command string qualifies — any extra argument or chaining is gated."""
+
+    DATE_CMD = "date '+%Y-%m-%d %H:%M:%S'"
+
+    def _invoke(self, runner, monkeypatch, command, posted=None):
+        from client_cli.commands import claude_hook as ch
+
+        monkeypatch.setenv("TASKPLANNER_BOARD_ID", "1")
+        monkeypatch.delenv("TASKPLANNER_USER_ACCESS_TOKEN", raising=False)
+        monkeypatch.setattr(
+            ch, "_hook_resolve_user", lambda *a, **k: {"id": 1, "username": "agent_x"}
+        )
+        # No tasks at all: anything that reaches the gate is denied, so a pass
+        # proves the bypass fired before any task lookup.
+        monkeypatch.setattr(ch, "_hook_get_agent_tasks", lambda *a, **k: [])
+        if posted is None:
+            posted = []
+        monkeypatch.setattr(
+            ch, "_hook_api_post",
+            lambda url, headers, json_data=None: posted.append((url, json_data)) or {},
+        )
+        data = json.dumps({
+            "session_id": "ungated-sess", "agent_id": "main",
+            "tool_name": "Bash",
+            "tool_input": {"command": command, "description": "time check"},
+        })
+        return runner.invoke(cli, ["claude-hook", "PreToolUse"], input=data)
+
+    @staticmethod
+    def _decision(result):
+        assert result.exit_code == 0
+        if not result.output.strip():
+            return None
+        return json.loads(result.output).get("hookSpecificOutput", {}).get("permissionDecision")
+
+    def test_exact_date_command_passes_without_any_task(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, self.DATE_CMD)
+        assert self._decision(result) is None
+
+    def test_surrounding_whitespace_still_passes(self, runner, monkeypatch):
+        result = self._invoke(runner, monkeypatch, f"  {self.DATE_CMD}\n")
+        assert self._decision(result) is None
+
+    def test_no_execution_log_posted(self, runner, monkeypatch):
+        posted = []
+        result = self._invoke(runner, monkeypatch, self.DATE_CMD, posted)
+        assert self._decision(result) is None
+        assert not any("/new_comment" in url for url, _ in posted)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "date",
+            'date "+%Y-%m-%d %H:%M:%S"',
+            "date -d '+14 seconds' '+%Y-%m-%d %H:%M:%S'",
+            "date '+%Y-%m-%d %H:%M:%S' && rm -rf /",
+            "date '+%Y-%m-%d %H:%M:%S'; echo hi",
+            "date '+%Y-%m-%d %H:%M:%S' | tee /tmp/t",
+            "env date '+%Y-%m-%d %H:%M:%S'",
+        ],
+    )
+    def test_any_variant_is_still_gated(self, runner, monkeypatch, command):
+        result = self._invoke(runner, monkeypatch, command)
+        assert self._decision(result) == "deny"
+
+
 class TestPreToolUseTaskPlannerChaining:
     """The TaskPlanner bypass allows redirections but not pipes (output must be
     read in full — #550) or command sequencing (which could smuggle an
@@ -384,6 +453,30 @@ class TestPreToolUseTaskMatching:
         result = self._invoke(runner, monkeypatch, "x Task#30", tasks=[])
         assert self._decision(result) == "deny"
         assert "No tasks assigned" in self._reason(result)
+
+    @pytest.mark.parametrize("status", ["WAITING_FOR_COMMAND_EXECUTION", "BLOCKED"])
+    def test_waiting_or_blocked_task_listed_not_claimed_missing(
+        self, runner, monkeypatch, status
+    ):
+        # A task parked in WAITING/BLOCKED must be listed as resumable — the
+        # "No tasks assigned to you" message would contradict an earlier deny
+        # that offered the same task while it was STARTED (#908).
+        parked = [{"id": 40, "title": "flip", "status": status, "importance": 0,
+                   "assignee_id": 1}]
+        result = self._invoke(runner, monkeypatch, "x Task#40", tasks=parked)
+        assert self._decision(result) == "deny"
+        reason = self._reason(result)
+        assert "No STARTED task" in reason
+        assert "#40" in reason
+        assert "No tasks assigned" not in reason
+
+    def test_reference_to_non_started_task_notes_its_status(self, runner, monkeypatch):
+        # With another task STARTED, referencing a non-STARTED task must say
+        # what state the referenced task is in instead of only re-listing the
+        # STARTED ones (#908: the task flipped out of STARTED between denies).
+        result = self._invoke(runner, monkeypatch, "x Task#30")
+        assert self._decision(result) == "deny"
+        assert "Task#30 is [NEW], not STARTED" in self._reason(result)
 
     # --- Edit/Write gating ---
 

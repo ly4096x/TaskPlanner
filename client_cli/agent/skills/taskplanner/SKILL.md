@@ -13,7 +13,7 @@ user-invocable: false
 `TaskPlanner [-s URL] [-b BOARD_ID] [-u TOKEN] [-V|--version] <command> ...`
 
 - `-s/--server URL` — server URL (default `http://localhost:8000`, or `TASKPLANNER_SERVER` env var)
-- `-b/--board ID` — board ID; **required** for board-scoped commands. Falls back to `TASKPLANNER_BOARD_ID` env var, then `TASKPLANNER_BOARD_NAME` env var (board name, resolved via the API; if both are set a warning is printed and `TASKPLANNER_BOARD_ID` wins), then the nearest `.env` walking up from CWD.
+- `-b/--board ID` — board ID; **required** for board-scoped commands. Falls back to `TASKPLANNER_BOARD_ID` env var, then `TASKPLANNER_BOARD_NAME` env var (board name, resolved via the API; if both are set `TASKPLANNER_BOARD_ID` wins silently), then the nearest `.env` walking up from CWD.
 - `-u/--user-access-token TOKEN` — access token (falls back to `TASKPLANNER_USER_ACCESS_TOKEN`).
 - `-V/--version` — print version and exit.
 

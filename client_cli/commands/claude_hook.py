@@ -432,6 +432,14 @@ def _has_shell_chaining(command):
     return any(tok in _DENIED_OPERATORS for tok in tokens)
 
 
+# Commands allowed without a STARTED task or Task# suffix, matched against the
+# exact command string (post-strip) so no argument, pipe, or sequencing variant
+# can ride along. The stop-time Stop hook requires the agent to run exactly
+# this time-report command at the end of every turn; gating it forced pointless
+# STARTED/WAITING status flips just to read the clock (#892, #908).
+_UNGATED_COMMANDS = {"date '+%Y-%m-%d %H:%M:%S'"}
+
+
 def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
     """PreToolUse: require active task for Bash/Edit/Write."""
     tool_name = data.get("tool_name", "")
@@ -441,6 +449,9 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
         return
 
     command = tool_input.get("command", "")
+
+    if tool_name == "Bash" and command.strip() in _UNGATED_COMMANDS:
+        return
 
     # Always allow TaskPlanner CLI commands — redirections included, but not
     # pipes (output must be read in full, not filtered — #550) and not command
@@ -492,7 +503,14 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
 
     active = [t for t in tasks if t["status"] == "STARTED"]
     if not active:
-        pending = [t for t in tasks if t["status"] in ("NEW", "STARTED")]
+        # List every resumable task, not just NEW ones: a task sitting in
+        # WAITING_FOR_COMMAND_EXECUTION or BLOCKED must not produce "No tasks
+        # assigned to you" — that message contradicts an earlier deny that
+        # offered the same task while it was STARTED (#908).
+        pending = [
+            t for t in tasks
+            if t["status"] in ("NEW", "WAITING_FOR_COMMAND_EXECUTION", "BLOCKED")
+        ]
         if pending:
             task_list = _hook_format_task_list(pending)
             _hook_deny(
@@ -520,11 +538,23 @@ def _handle_pre_tool_use(ctx, url, headers, data, session_id, agent_id):
     current_task = active_by_id.get(int(match.group(1))) if match else None
     if match is None or current_task is None:
         task_list = _hook_format_task_list(active)
-        _hook_deny(
+        msg = (
             "Command description must reference one of your STARTED tasks:\n"
             f"{task_list}\n\n"
             'Add suffix to your description: " Task#<task_id>"'
         )
+        # The referenced task may exist but have left STARTED between two gate
+        # evaluations (a concurrent agent flipping it to WAITING — #908); say
+        # so instead of letting the generic message contradict the earlier one.
+        if match is not None:
+            ref = next((t for t in tasks if t["id"] == int(match.group(1))), None)
+            if ref is not None:
+                msg += (
+                    f"\nNote: Task#{ref['id']} is [{ref['status']}], not STARTED"
+                    " — resume it first:\n"
+                    f"  $ TaskPlanner edit {ref['id']} --status STARTED"
+                )
+        _hook_deny(msg)
         return
 
     # Log as comment. The hook's headers carry the admin token (the wrapper

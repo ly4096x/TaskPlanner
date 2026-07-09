@@ -242,7 +242,7 @@ class TestBoardFromEnvFile:
 
 class TestBoardNameEnv:
     """TASKPLANNER_BOARD_NAME resolves a board by name via the API (#746);
-    TASKPLANNER_BOARD_ID wins with a warning when both are set."""
+    TASKPLANNER_BOARD_ID wins silently when both are set (2c1a460d)."""
 
     BOARDS = [{"id": 3, "name": "Dev Board"}, {"id": 4, "name": "Ops"}]
 
@@ -268,14 +268,14 @@ class TestBoardNameEnv:
         assert any("/api/v1/board/3/tasks" in u for u in urls)
 
     @patch("client_cli.cli.httpx.get")
-    def test_board_id_wins_with_warning(self, mock_get, runner):
+    def test_board_id_wins_silently(self, mock_get, runner):
         mock_get.side_effect = self._mock_get()
         result = runner.invoke(
             cli, ["list"],
             env={"TASKPLANNER_BOARD_ID": "4", "TASKPLANNER_BOARD_NAME": "Dev Board"},
         )
         assert result.exit_code == 0
-        assert "using TASKPLANNER_BOARD_ID" in result.output
+        assert "TASKPLANNER_BOARD_ID" not in result.output
         urls = [c.args[0] for c in mock_get.call_args_list]
         assert any("/api/v1/board/4/tasks" in u for u in urls)
         # Name resolution must not even be attempted.
