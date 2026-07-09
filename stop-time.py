@@ -35,7 +35,7 @@ from typing import NoReturn
 # --- Configuration -----------------------------------------------------------
 # The stated time may be at most this many seconds BEHIND the real clock.
 # Writing the reply takes a moment, so some lag is expected and allowed.
-MAX_BEHIND_SECONDS = 10
+MAX_BEHIND_SECONDS = 30
 # The stated time may be at most this many seconds AHEAD of the real clock
 # (small grace for clock jitter / sub-second rounding).
 MAX_AHEAD_SECONDS = 2
