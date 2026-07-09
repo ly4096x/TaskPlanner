@@ -728,12 +728,10 @@ class TestStatusCommentRequired:
         assert resp.status_code == 200
         assert resp.json()["status"] == status
 
-    def test_not_reproducible_prefix_check_runs_before_transition_validator(self, aclient):
-        """The NOT_REPRODUCIBLE prefix rule applies to admins too. Even though the
-        transition graph in schema.yaml currently has no inbound edge to
-        NOT_REPRODUCIBLE, the reason-prefix check fires before the transition
-        validator, so the 422 it returns is the prefix message rather than
-        the transition error."""
+    def test_not_reproducible_prefix_applies_to_admins(self, aclient):
+        """The NOT_REPRODUCIBLE prefix rule applies to admins too: a reason
+        without the mandatory prefix is a 422 even though the transition
+        itself (STARTED → NOT_REPRODUCIBLE) is legal."""
         board, task = self._setup_started_task(aclient)
         resp = aclient.post(
             f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
@@ -741,6 +739,53 @@ class TestStatusCommentRequired:
         )
         assert resp.status_code == 422
         assert "Not reproducible because:" in resp.json()["detail"]
+
+    def test_not_reproducible_reachable_from_started(self, aclient, member_client):
+        # NOT_REPRODUCIBLE gained inbound edges from NEW/STARTED so triage can
+        # actually use it (#918 — the web UI could never set this status).
+        board, task = self._setup_started_task(aclient)
+        reason = "Not reproducible because: cross-board 404, see #785"
+        resp = member_client.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "NOT_REPRODUCIBLE", "status_reason": reason},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "NOT_REPRODUCIBLE"
+        comments = member_client.get(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/comments"
+        ).json()
+        assert any(c["content"] == reason for c in comments)
+
+    def test_not_reproducible_reachable_from_new(self, aclient):
+        board, task = self._setup_started_task(aclient)
+        aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "NEW"},
+        )
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={
+                "status": "NOT_REPRODUCIBLE",
+                "status_reason": "Not reproducible because: could not trigger on triage",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "NOT_REPRODUCIBLE"
+
+    def test_not_reproducible_unreachable_from_done(self, aclient):
+        board, task = self._setup_started_task(aclient)
+        aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={"status": "DONE"},
+        )
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/{task['id']}/edit",
+            json={
+                "status": "NOT_REPRODUCIBLE",
+                "status_reason": "Not reproducible because: nope",
+            },
+        )
+        assert resp.status_code == 422
 
     def test_idempotent_status_no_reason_required(self, aclient, member_client):
         """Setting status to its current value is not a transition; no reason needed."""

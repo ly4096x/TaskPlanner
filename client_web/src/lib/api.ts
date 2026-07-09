@@ -75,6 +75,7 @@ export interface EditTaskData {
   assignee?: string | null;
   assignee_id?: number | null;
   status?: TaskStatus;
+  status_reason?: string;
   tags?: string[];
   blockers?: number[];
   parent_task_id?: number | null;

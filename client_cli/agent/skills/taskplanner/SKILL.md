@@ -116,8 +116,8 @@ Statuses: `NEW`, `STARTED`, `BLOCKED`, `WAITING_FOR_COMMAND_EXECUTION`, `DONE`, 
 
 Allowed `from → to` edges (source: `shared/schema.yaml`):
 
-- `NEW → STARTED, CANCELLED`
-- `STARTED → DONE, BLOCKED, WAITING_FOR_COMMAND_EXECUTION, CANCELLED, NEW`
+- `NEW → STARTED, CANCELLED, NOT_REPRODUCIBLE`
+- `STARTED → DONE, BLOCKED, WAITING_FOR_COMMAND_EXECUTION, CANCELLED, NEW, NOT_REPRODUCIBLE`
 - `BLOCKED → STARTED, NEW, CANCELLED`
 - `WAITING_FOR_COMMAND_EXECUTION → STARTED, NEW, CANCELLED`
 - `DONE → STARTED, NEW`
@@ -129,7 +129,7 @@ Rules:
 - Non-NEW status requires an assignee first.
 - DONE can only be reached from STARTED.
 - BLOCKED requires at least one active (non-DONE/CANCELLED) blocker.
-- NOT_REPRODUCIBLE has **no inbound edge** in the transition graph, so `edit --status NOT_REPRODUCIBLE` will be rejected. Use it as the initial status on creation, or via direct DB/admin paths; the per-transition reason rule below still applies.
+- NOT_REPRODUCIBLE is reachable from NEW and STARTED only; the reason must start with `Not reproducible because:` (enforced for everyone, see below).
 - When a non-admin transitions a task to `DONE`, `WAITING_FOR_COMMAND_EXECUTION`, `NOT_REPRODUCIBLE`, or `CANCELLED`, the server requires `--reason MARKDOWN_TEXT`; for `NOT_REPRODUCIBLE` the reason must start with `Not reproducible because:` (enforced for everyone). The reason is also recorded as a comment.
 
 ## Handing a task back to the user

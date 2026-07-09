@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { editTask, listUsers, listTasks, getTask as fetchTask, getAttachments, uploadFile, deleteAttachment, getFileUrl, type Task, type User, type Attachment } from '../lib/api';
-  import { STATUSES } from '../lib/statuses';
+  import { editTask, listUsers, listTasks, getTask as fetchTask, getAttachments, uploadFile, deleteAttachment, getFileUrl, type Task, type User, type Attachment, type EditTaskData } from '../lib/api';
+  import { TRANSITIONS, TRANSITION_CONDITIONS } from '../lib/statuses';
   import { marked } from 'marked';
   import CommentSection from './CommentSection.svelte';
 
@@ -26,6 +26,7 @@
   let editBlockers = $state<number[]>([]);
   let editAssigneeId = $state<number | null>(null);
   let editParentId = $state<string>('');
+  let editStatusReason = $state('');
 
   $effect.pre(() => {
     editTitle = task.title;
@@ -37,7 +38,31 @@
     editBlockers = [...task.blockers];
     editAssigneeId = task.assignee_id;
     editParentId = task.parent_task_id != null ? String(task.parent_task_id) : '';
+    editStatusReason = '';
   });
+
+  // Statuses reachable from the task's current status per the shared
+  // transition graph (self included so the select always has a valid value) —
+  // the same graph the server enforces, so illegal targets can't be picked.
+  const statusOptions = $derived([task.status, ...(TRANSITIONS[task.status] ?? [])]);
+
+  // Transitions into these statuses need a status_reason server-side
+  // (non-admins for DONE/WAITING/CANCELLED; everyone for NOT_REPRODUCIBLE).
+  const REASON_STATUSES = ['DONE', 'WAITING_FOR_COMMAND_EXECUTION', 'NOT_REPRODUCIBLE', 'CANCELLED'];
+  const statusChanged = $derived(editStatus !== task.status);
+  const reasonPrefix = $derived(
+    (TRANSITION_CONDITIONS[editStatus] as { require_reason?: string } | undefined)?.require_reason ?? ''
+  );
+  const showReasonField = $derived(statusChanged && REASON_STATUSES.includes(editStatus));
+
+  function handleStatusChange() {
+    // Prefill the mandatory prefix (e.g. "Not reproducible because:") so the
+    // user completes the sentence instead of discovering the 422 on save.
+    if (reasonPrefix && !editStatusReason.startsWith(reasonPrefix)) {
+      editStatusReason = `${reasonPrefix} `;
+    }
+    markDirty();
+  }
   let newTag = $state('');
   let newBlocker = $state('');
   let saving = $state(false);
@@ -151,11 +176,7 @@
       const selectedUser = users.find(u => u.id === editAssigneeId);
       const parentVal = editParentId.trim();
       const parentTaskId = parentVal === '' || parentVal === '0' ? null : parseInt(parentVal);
-      // TODO: server requires status_reason from non-admins when transitioning to
-      // DONE / WAITING_FOR_COMMAND_EXECUTION / NOT_REPRODUCIBLE / CANCELLED. The
-      // form does not yet collect a reason — the resulting 422 surfaces in saveError.
-      // Add a reason field here when the UX warrants it.
-      const updated = await editTask(boardId, task.id, {
+      const payload: EditTaskData = {
         title: editTitle,
         description: editDescription,
         importance: editImportance,
@@ -165,7 +186,15 @@
         blockers: editBlockers,
         assignee: selectedUser?.username ?? null,
         parent_task_id: parentTaskId,
-      });
+      };
+      if (statusChanged && editStatusReason.trim()) {
+        let reason = editStatusReason.trim();
+        if (reasonPrefix && !reason.startsWith(reasonPrefix)) {
+          reason = `${reasonPrefix} ${reason}`;
+        }
+        payload.status_reason = reason;
+      }
+      const updated = await editTask(boardId, task.id, payload);
       dirty = false;
       onupdated(updated);
     } catch (e) {
@@ -258,12 +287,22 @@
     <div class="mb-4">
       <!-- svelte-ignore a11y_label_has_associated_control -->
       <label class="text-xs font-semibold uppercase text-text-secondary mb-1 block">Status</label>
-      <select bind:value={editStatus} onchange={markDirty}>
-        {#each STATUSES as s}
+      <select bind:value={editStatus} onchange={handleStatusChange}>
+        {#each statusOptions as s}
           <option value={s}>{s.replace(/_/g, ' ')}</option>
         {/each}
       </select>
       <span class="inline-block w-2.5 h-2.5 rounded-full ml-2 align-middle" style="background: {statusColor(editStatus)}"></span>
+      {#if showReasonField}
+        <input
+          type="text"
+          bind:value={editStatusReason}
+          oninput={markDirty}
+          placeholder={reasonPrefix ? `${reasonPrefix} …` : 'Reason for status change'}
+          title="Recorded as a comment. Required for non-admins (always for NOT REPRODUCIBLE)."
+          class="w-full box-border mt-2"
+        />
+      {/if}
     </div>
 
     <div class="mb-4">
