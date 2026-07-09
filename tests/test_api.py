@@ -235,6 +235,45 @@ class TestTasks:
         assert data["assignee_id"] is None
         assert data["assignee_name"] is None
 
+    def test_create_started_task_defaults_assignee_to_creator(self, aclient, db_conn):
+        # Non-NEW statuses require an assignee; creation used to bypass that
+        # rule, leaving `add-task --start-now` tasks stuck unassigned (#792).
+        board = _create_board(aclient)
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "Start me now", "status": "STARTED"},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["status"] == "STARTED"
+        admin_id = db_conn.execute(
+            "SELECT id FROM users WHERE username = 'admin'"
+        ).fetchone()[0]
+        assert data["assignee_id"] == admin_id
+        assert data["creator_id"] == admin_id
+
+    def test_create_started_task_explicit_assignee_wins(self, aclient):
+        board = _create_board(aclient)
+        user_resp = aclient.post(
+            "/api/v1/users",
+            json={"external_id": "dev2", "username": "worker", "display_name": "Worker"},
+        )
+        user_id = user_resp.json()["id"]
+        resp = aclient.post(
+            f"/api/v1/board/{board['id']}/tasks/new",
+            json={"title": "Started for someone", "status": "STARTED", "assignee_id": user_id},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["status"] == "STARTED"
+        assert data["assignee_id"] == user_id
+
+    def test_create_non_new_without_creator_rejected(self, aclient, db_conn):
+        # Direct crud callers without a creator can't fall back to anyone.
+        board = _create_board(aclient)
+        with pytest.raises(ValueError, match="without an assignee"):
+            crud.create_task(db_conn, board_id=board["id"], title="orphan", status="STARTED")
+
     def test_create_task_full(self, aclient):
         board = _create_board(aclient)
         # Create a user to assign

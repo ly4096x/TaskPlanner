@@ -328,6 +328,16 @@ def create_task(
         if assignee_id is None:
             raise ValueError(f"User '{assignee}' not found")
 
+    # Status rule: non-NEW statuses require an assignee — the same invariant
+    # edit_task enforces on transitions, which creation used to bypass,
+    # leaving e.g. `add-task --start-now` tasks stuck unassigned in STARTED
+    # (#792). Creating a task already started means the creator is working
+    # on it, so default the assignee to the creator.
+    if status != "NEW" and assignee_id is None:
+        if creator_id is None:
+            raise ValueError(f"Cannot create a {status} task without an assignee")
+        assignee_id = creator_id
+
     # Validate parent_task_id
     if parent_task_id is not None:
         parent = conn.execute(
