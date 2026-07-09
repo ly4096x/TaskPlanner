@@ -454,7 +454,29 @@ def get_task(
     _check_board_read(conn, user, board_id)
     task = crud.get_task(conn, board_id=board_id, task_id=task_id)
     if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+        # Board resolution drift makes a task on another board look deleted
+        # (#759/#785: "task disappeared" reports that were cross-board 404s).
+        # If the id lives on a board the caller may read, say so — but stay a
+        # plain 404 for boards they can't read, to avoid probing.
+        detail = "Task not found"
+        row = conn.execute(
+            "SELECT board_id FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if row is not None and row[0] != board_id:
+            try:
+                _check_board_read(conn, user, row[0])
+            except HTTPException:
+                pass
+            else:
+                name_row = conn.execute(
+                    "SELECT name FROM boards WHERE id = ?", (row[0],)
+                ).fetchone()
+                board_name = f" ({name_row[0]})" if name_row else ""
+                detail = (
+                    f"Task {task_id} is not on board {board_id}; "
+                    f"it exists on board {row[0]}{board_name}"
+                )
+        raise HTTPException(status_code=404, detail=detail)
     # Log task access
     crud.record_task_access(conn, user["id"], task_id, time.time())
     return task

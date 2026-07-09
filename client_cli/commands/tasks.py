@@ -289,7 +289,15 @@ def show_task(ctx, task_id, template):
         task = resp.json()
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
-            click.echo(click.style(f"Error: Task {task_id} not found.", fg="red"), err=True)
+            # Surface the server's detail — it may point at the task's actual
+            # board when the id exists elsewhere (cross-board 404, #785).
+            try:
+                detail = e.response.json().get("detail", "")
+            except ValueError:
+                detail = ""
+            if not detail or detail == "Task not found":
+                detail = f"Task {task_id} not found."
+            click.echo(click.style(f"Error: {detail}", fg="red"), err=True)
             raise SystemExit(1)
         handle_request_error(e)
         return

@@ -312,6 +312,48 @@ class TestTasks:
         assert set(data["tags"]) == {"backend", "urgent"}
         assert data["blockers"] == [blocker["id"]]
 
+    def test_cross_board_404_names_actual_board_when_readable(self, aclient):
+        # Board-resolution drift made live tasks look deleted (#759/#785);
+        # the 404 must point at the board the id actually lives on.
+        board_a = _create_board(aclient, name="Board A")
+        board_b = _create_board(aclient, name="Board B")
+        task = aclient.post(
+            f"/api/v1/board/{board_b['id']}/tasks/new", json={"title": "Elsewhere"}
+        ).json()
+        resp = aclient.get(f"/api/v1/board/{board_a['id']}/tasks/{task['id']}")
+        assert resp.status_code == 404
+        detail = resp.json()["detail"]
+        assert f"board {board_b['id']}" in detail
+        assert "Board B" in detail
+
+    def test_cross_board_404_stays_plain_when_other_board_unreadable(
+        self, aclient, member_client, db_conn
+    ):
+        board_a = _create_board(aclient, name="Readable")
+        board_b = _create_board(aclient, name="Hidden")
+        task = aclient.post(
+            f"/api/v1/board/{board_b['id']}/tasks/new", json={"title": "Secret"}
+        ).json()
+        # Per-board rows REPLACE the role's defaults on that board: a board-B
+        # row without boards.read hides board B from the member role.
+        role_id = db_conn.execute(
+            "SELECT id FROM roles WHERE name = 'member_test'"
+        ).fetchone()[0]
+        db_conn.execute(
+            "INSERT INTO role_permissions (role_id, action, board_id) VALUES (?, 'tasks.read', ?)",
+            (role_id, board_b["id"]),
+        )
+        db_conn.commit()
+        resp = member_client.get(f"/api/v1/board/{board_a['id']}/tasks/{task['id']}")
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Task not found"
+
+    def test_404_plain_for_nonexistent_id(self, aclient):
+        board_a = _create_board(aclient)
+        resp = aclient.get(f"/api/v1/board/{board_a['id']}/tasks/999999")
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Task not found"
+
     def test_get_task(self, aclient):
         board = _create_board(aclient)
         create_resp = aclient.post(
