@@ -13,9 +13,11 @@ stop and asks the agent to restate it with the correct current time.
 
 Why one script covers both events:
   * Stop and SubagentStop both put the final response text in the
-    `last_assistant_message` input field, so we never parse the transcript.
+    `last_assistant_message` input field, so the transcript is only a
+    fallback for older builds that lack the field.
     (The transcript file is written asynchronously and lags the live turn;
-    for SubagentStop `transcript_path` is the MAIN session, not the subagent.)
+    for SubagentStop `transcript_path` is the MAIN session, not the subagent —
+    the subagent's own transcript is `agent_transcript_path`.)
 
 Communication protocol (both events):
   - exit 0 with no JSON            -> allow the agent to stop

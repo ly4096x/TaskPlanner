@@ -168,7 +168,8 @@ def print_task_detail(url: str, board: int, task: dict, show_attachments: bool =
 @click.option("--effort", default=0, type=int, help="Estimated effort >= 0")
 @click.option("--tags", default=None, help="Comma-separated tag names")
 @click.option("--blockers", default=None, help="Comma-separated task IDs")
-@click.option("--start-now", is_flag=True, default=False, help="Create with STARTED status")
+@click.option("--start-now", is_flag=True, default=False,
+              help="Create with STARTED status (assignee defaults to you if omitted)")
 @click.option("--parent", "parent_task_id", default=None, type=int, help="Parent task ID")
 @click.pass_context
 def add_task(ctx, title, description, assignee, importance, effort, tags, blockers, start_now, parent_task_id):

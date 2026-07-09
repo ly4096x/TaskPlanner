@@ -51,6 +51,10 @@ TaskPlanner add-task --title TEXT [--description MARKDOWN_TEXT] [--assignee USER
     [--blockers ID1,ID2,...] [--parent TASK_ID] [--start-now]
 ```
 
+`--start-now` creates the task as STARTED; when `--assignee` is omitted it
+defaults to you (the creating user) — non-NEW statuses always need an
+assignee.
+
 ### edit options
 ```
 TaskPlanner edit TASK_ID [--status STATUS] [--reason MARKDOWN_TEXT] [--assignee USERNAME]
@@ -156,6 +160,10 @@ In Claude Code sessions a PreToolUse hook gates Bash/Edit/Write:
   tasks; accepted commands are logged on that task as EXECUTION_LOG comments.
   A delegated **subagent** may also reference the session main agent's
   STARTED tasks — no need to create a mirror task.
+- **Exception:** the exact command `date '+%Y-%m-%d %H:%M:%S'` (no other
+  args, pipes, or sequencing) is always allowed without a STARTED task or
+  `Task#` suffix, and is not logged — it exists to satisfy time-report Stop
+  hooks.
 - **TaskPlanner commands** always pass without a STARTED task, but must be a
   single invocation: no pipes (`|` — read the full output instead of
   filtering it), no top-level `;` `&&` `||` `&`, subshells, or unquoted

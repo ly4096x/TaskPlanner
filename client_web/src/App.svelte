@@ -331,10 +331,10 @@
   }
 
   // TODO: server requires status_reason from non-admin users when transitioning to
-  // DONE / WAITING_FOR_COMMAND_EXECUTION / NOT_REPRODUCIBLE / CANCELLED.
+  // DONE / WAITING_FOR_COMMAND_EXECUTION / CANCELLED (NOT_REPRODUCIBLE is no_drag).
   // Kanban drag currently sends no reason — the optimistic update will roll back
   // on a 422 from the server. Add a reason prompt here when surfacing the error
-  // becomes a UX issue (also applies to TaskDetail.svelte's edit form).
+  // becomes a UX issue. (TaskDetail.svelte's edit form already collects one.)
   async function handleKanbanStatusChange(task: Task, newStatus: string) {
     const oldStatus = task.status;
     tasks = tasks.map(t => t.id === task.id ? { ...t, status: newStatus as Task['status'] } : t);
