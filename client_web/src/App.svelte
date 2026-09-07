@@ -67,7 +67,11 @@
   let editBoardNameValue = $state('');
   let currentUser: User | null = $state(null);
   let authChecked = $state(false);
-  let loginToken = $state('');
+  // GitHub Pages demo: the API is answered in-memory (lib/demo.ts) and accepts any
+  // token, so the login page says so and comes prefilled — the point is to be
+  // explicit that this is not a real login, not to hide the page.
+  const DEMO = import.meta.env.VITE_DEMO === '1';
+  let loginToken = $state(DEMO ? 'demo' : '');
   let loginError = $state('');
   let loginLoading = $state(false);
 
@@ -460,7 +464,16 @@
   <div class="flex items-center justify-center min-h-screen bg-bg">
     <div class="bg-surface border border-border rounded-lg p-8 w-full max-w-sm shadow-lg">
       <h1 class="text-xl font-bold mb-1 text-text">TaskPlanner</h1>
-      <p class="text-sm text-text-secondary mb-6">Enter your access token to continue.</p>
+      {#if DEMO}
+        <p class="text-sm text-text-secondary mb-2">Enter your access token to continue.</p>
+        <p class="text-xs mb-6 px-3 py-2 rounded border border-border bg-bg text-text" data-testid="demo-login-notice">
+          <strong>Demo mode.</strong> There is no server behind this page: the board lives in your
+          browser tab and resets on reload. <strong>Any token logs you in</strong> — <code>demo</code>
+          is filled in for you.
+        </p>
+      {:else}
+        <p class="text-sm text-text-secondary mb-6">Enter your access token to continue.</p>
+      {/if}
       <div class="flex flex-col gap-3">
         <input
           type="password"

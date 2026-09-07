@@ -608,8 +608,10 @@ export function installDemo() {
     }
   };
   (window as unknown as { EventSource: unknown }).EventSource = DemoEventSource;
-  // The app auto-logs-in from a stored token; any value works against the demo.
-  if (!localStorage.getItem('accessToken')) localStorage.setItem('accessToken', 'demo');
+  // No token is pre-seeded on purpose: the login page is SHOWN, and says that any
+  // token works (the project author: "auto login on any token, and explicitly tell
+  // user about it on login page"). /api/v1/auth/me accepts whatever is sent, and
+  // the app's own login stores it, so a reload after that skips the page as usual.
 
   const banner = document.createElement('div');
   banner.textContent = 'Demo — fictional data, lives in this tab only, resets on reload.';

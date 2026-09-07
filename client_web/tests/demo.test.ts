@@ -4,6 +4,7 @@
 // mutation is both persisted and broadcast to the fake EventSource.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { installDemo } from '../src/lib/demo';
+import { getAccessToken } from '../src/lib/api';
 import fixture from '../src/lib/demo-data.json';
 
 async function get<T>(path: string): Promise<{ status: number; body: T }> {
@@ -23,10 +24,19 @@ beforeAll(() => {
 });
 
 describe('demo mode API', () => {
-  it('logs in as the first fixture user and serves the fixture boards', async () => {
-    const me = await get<{ username: string }>('/api/v1/auth/me');
-    expect(me.body.username).toBe(fixture.users[0].username);
-    expect(localStorage.getItem('accessToken')).toBeTruthy();
+  it('shows the login page (no token pre-seeded) and then accepts ANY token', async () => {
+    // Ruled explicitly: the demo does not sneak past the login page; it shows it,
+    // says any token works, and means it. The IN-MEMORY token is what checkAuth()
+    // consults (api.ts read localStorage at import time), so that is what must be
+    // unset here — asserting only localStorage once passed while real first visits
+    // behaved differently.
+    expect(getAccessToken()).toBeNull();
+
+    for (const token of ['demo', 'anything-at-all', 'tp_looks_real']) {
+      const res = await fetch('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as { username: string }).username).toBe(fixture.users[0].username);
+    }
 
     const boards = await get<{ name: string }[]>('/api/v1/boards');
     expect(boards.body.map((b) => b.name)).toEqual(fixture.boards.map((b) => b.name));
