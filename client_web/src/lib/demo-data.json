@@ -1,0 +1,174 @@
+{
+  "_comment": "Sample dataset shared by the GitHub Pages demo (imported at build time when VITE_DEMO=1) and scripts/seed_demo.py (which pushes it into a live server for screenshots). Entirely fictional.",
+  "users": [
+    { "external_id": "alice", "username": "alice", "display_name": "Alice (team lead)", "role": "admin" },
+    { "external_id": "bob", "username": "bob", "display_name": "Bob (reviewer)", "role": "member" },
+    { "external_id": "agent_backend_dev", "username": "agent_backend_dev", "display_name": "agent_backend_dev", "role": "member" },
+    { "external_id": "agent_frontend_dev", "username": "agent_frontend_dev", "display_name": "agent_frontend_dev", "role": "member" },
+    { "external_id": "agent_qa", "username": "agent_qa", "display_name": "agent_qa", "role": "member" }
+  ],
+  "boards": [
+    { "name": "Payments Service", "description": "Stripe integration rewrite — humans decide, agents build, QA verifies" },
+    { "name": "Docs & Onboarding", "description": "Developer documentation overhaul" }
+  ],
+  "tasks": [
+    {
+      "board": "Payments Service",
+      "title": "Design the retry policy for failed webhook deliveries",
+      "assignee": "alice",
+      "description": "Decide max attempts, backoff shape, and the dead-letter path. Agents are blocked on this decision for the worker implementation.",
+      "importance": 45,
+      "estimated_effort": 3,
+      "status": "STARTED",
+      "tags": ["design", "webhooks"]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Implement webhook delivery worker with exponential backoff",
+      "assignee": "agent_backend_dev",
+      "description": "Consume the outbox table, deliver with retries per the policy from the design task, emit delivery events for the dashboard.",
+      "importance": 40,
+      "estimated_effort": 8,
+      "status": "BLOCKED",
+      "tags": ["backend", "webhooks"],
+      "blockers_by_title": ["Design the retry policy for failed webhook deliveries"],
+      "comments": [
+        { "by": "agent_backend_dev", "text": "Outbox schema and consumer skeleton are ready on a branch. Parking this as BLOCKED until the retry policy lands — the backoff shape changes the consumer loop." }
+      ]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Idempotency keys for the charge endpoint",
+      "assignee": "agent_backend_dev",
+      "description": "Double-submits currently create duplicate charges in the sandbox. Key on (account, request hash) with a 24h window.",
+      "importance": 50,
+      "estimated_effort": 5,
+      "status": "STARTED",
+      "tags": ["backend", "correctness"],
+      "comments": [
+        { "by": "agent_backend_dev", "text": "Reproduced the duplicate charge with two concurrent POSTs. Fix in progress: unique index plus a replay of the stored response." },
+        { "by": "alice", "text": "Make sure the replayed response carries the original charge id — the mobile client keys its receipt screen off it." }
+      ]
+    },
+    {
+      "board": "Payments Service",
+      "title": "QA: verify duplicate-charge fix under concurrent load",
+      "assignee": "agent_qa",
+      "description": "Hammer the charge endpoint with 50 concurrent identical requests; exactly one charge may land. Verdict goes back on the dev task.",
+      "importance": 50,
+      "estimated_effort": 2,
+      "status": "NEW",
+      "tags": ["qa", "correctness"],
+      "parent_by_title": "Idempotency keys for the charge endpoint"
+    },
+    {
+      "board": "Payments Service",
+      "title": "Currency rounding: charge totals off by one cent for JPY",
+      "assignee": "agent_backend_dev",
+      "description": "Zero-decimal currencies were divided by 100 twice on the invoice path.",
+      "importance": 55,
+      "estimated_effort": 1,
+      "status": "DONE",
+      "tags": ["bug", "backend"],
+      "comments": [
+        { "by": "agent_qa", "text": "Verified against the sandbox for JPY, KRW and VND — totals match the gateway to the unit. Regression test pinned all three." }
+      ]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Refunds dashboard: live status column",
+      "assignee": "agent_frontend_dev",
+      "description": "Stream refund state changes over SSE instead of the 30s poll, so support sees a refund settle while the customer is still on the call.",
+      "importance": 35,
+      "estimated_effort": 5,
+      "status": "STARTED",
+      "tags": ["frontend", "dashboard"]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Nightly reconciliation batch times out on months with >1M transactions",
+      "assignee": "agent_backend_dev",
+      "description": "Batch loads the whole month into memory. Page by settlement day and stream the diff.",
+      "importance": 30,
+      "estimated_effort": 8,
+      "status": "WAITING_FOR_COMMAND_EXECUTION",
+      "tags": ["backend", "performance"],
+      "comments": [
+        { "by": "agent_backend_dev", "text": "Backfill re-run kicked off on the staging replica (~40 min). Parked on that run; the watcher flips this back when the process exits." }
+      ]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Intermittent 502 from the sandbox gateway",
+      "assignee": "agent_qa",
+      "description": "Seen twice on Tuesday, none since; no pattern in the gateway logs.",
+      "importance": 25,
+      "estimated_effort": 2,
+      "status": "NOT_REPRODUCIBLE",
+      "tags": ["bug", "flaky"],
+      "comments": [
+        { "by": "agent_qa", "text": "600 requests across three hours, zero failures. Closing as not reproducible; reopen with a request id if it comes back." }
+      ]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Migrate card vault to the new tokenization API",
+      "assignee": null,
+      "description": "Gateway sunsets the legacy vault API next quarter. Needs an owner and a migration plan before anything else moves.",
+      "importance": 40,
+      "estimated_effort": 13,
+      "status": "NEW",
+      "tags": ["backend", "migration"]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Spike: evaluate usage-based billing providers",
+      "assignee": "bob",
+      "description": "Superseded — product chose seat-based pricing for the next two quarters.",
+      "importance": 15,
+      "estimated_effort": 3,
+      "status": "CANCELLED",
+      "tags": ["research"]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Alert when webhook delivery lag exceeds 60s",
+      "assignee": "agent_backend_dev",
+      "description": "Page the on-call only after three consecutive breaches; a single slow delivery is normal.",
+      "importance": 30,
+      "estimated_effort": 2,
+      "status": "NEW",
+      "tags": ["backend", "observability"]
+    },
+    {
+      "board": "Payments Service",
+      "title": "Load test: 10x Black Friday traffic profile",
+      "assignee": "agent_qa",
+      "description": "Replay last year's peak shape at 10x against staging; the charge path must hold p99 under 300ms.",
+      "importance": 35,
+      "estimated_effort": 5,
+      "status": "NEW",
+      "tags": ["qa", "performance"]
+    },
+    {
+      "board": "Docs & Onboarding",
+      "title": "Quickstart: zero to first charge in five minutes",
+      "assignee": "agent_frontend_dev",
+      "description": "One page, one code block per step, ends with a real sandbox charge.",
+      "importance": 40,
+      "estimated_effort": 3,
+      "status": "STARTED",
+      "tags": ["docs"]
+    },
+    {
+      "board": "Docs & Onboarding",
+      "title": "Document the webhook signature verification",
+      "assignee": "bob",
+      "description": "Cover clock skew, key rotation, and the three most common verification mistakes from support tickets.",
+      "importance": 35,
+      "estimated_effort": 2,
+      "status": "NEW",
+      "tags": ["docs", "webhooks"]
+    }
+  ]
+}

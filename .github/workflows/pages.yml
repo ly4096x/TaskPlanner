@@ -1,0 +1,55 @@
+name: Demo (GitHub Pages)
+
+# Builds the web client in demo mode — no server, the API is answered in-memory
+# from client_web/src/lib/demo-data.json — and publishes it to GitHub Pages.
+# The demo lives under /TaskPlanner/, hence the base path.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client_web/**'
+      - 'shared/schema.yaml'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: client_web/pnpm-lock.yaml
+      - run: cd client_web && pnpm install --frozen-lockfile && pnpm build:demo
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: client_web/dist-demo
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

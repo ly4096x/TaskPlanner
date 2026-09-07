@@ -2,6 +2,13 @@ import { mount } from 'svelte';
 import './app.css';
 import App from './App.svelte';
 
+// GitHub Pages build: no server behind it, so the API is answered in-memory from
+// a fixture (see lib/demo.ts). Must run before anything calls fetch.
+if (import.meta.env.VITE_DEMO === '1') {
+  const { installDemo } = await import('./lib/demo');
+  installDemo();
+}
+
 // Instant tooltips — suppress native title delay, show a positioned div instead
 const tip = document.createElement('div');
 tip.id = 'tooltip';
